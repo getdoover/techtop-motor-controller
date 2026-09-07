@@ -41,6 +41,13 @@ terminal 7 and set *Enable Output Pin* in the config, or permanently link
 terminal 1 (+24 V) to terminal 2. Using a Doovit output is preferred: the app
 drops it on shutdown, which stops the motor if the Doovit powers down.
 
+The app only drives that output high once it has read P-12 = 3 from the drive
+and control is enabled. In terminal mode (P-12 = 0) DI1 is the *run* command,
+so asserting it there would start the motor, and an enabled drive also refuses
+keypad edits to parameters such as P-12 (the display flashes with an `L`). If
+you need to edit a locked parameter while the app is running, set *Control
+Enabled* off and redeploy, or stop the app's container.
+
 ## Drive setup (keypad, one-off)
 
 The drive rejects control-word writes unless it is in Modbus control mode, and

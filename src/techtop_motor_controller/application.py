@@ -102,7 +102,6 @@ class TechtopMotorControllerApplication(Application):
         self._tick_lock = asyncio.Lock()
         self._last_summary_log: float = 0.0
 
-        await self._assert_enable(True)
         log.info(
             "Techtop motor controller ready: unit %s, control %s, enable pin %s",
             cfg.modbus_unit_id.value,
@@ -164,7 +163,11 @@ class TechtopMotorControllerApplication(Application):
         cfg = self.config
         now = time.monotonic()
 
-        await self._assert_enable(True)
+        # The enable output is only asserted once the drive is known to be in
+        # Modbus control mode with control enabled. In terminal mode (P-12 = 0)
+        # DI1 is the RUN command, so holding it high there would start the
+        # motor; it also locks parameter edits on the keypad while enabled.
+        await self._assert_enable(self.control_allowed)
 
         include_meters = (
             self._meters_read_at is None or now - self._meters_read_at > METER_REFRESH_S

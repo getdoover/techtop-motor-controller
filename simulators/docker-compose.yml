@@ -1,0 +1,17 @@
+# Run the app by hand on a Doovit (or any box with the Doover device agent,
+# platform interface and modbus interface listening on localhost) without a
+# platform deployment:
+#
+#   docker compose -f simulators/docker-compose.yml up --build
+#
+# The app reads its config from simulators/app_config.json (CONFIG_FP). That
+# file must also carry APP_KEY / APP_DISPLAY_NAME, which a real deployment
+# injects for you -- without them the cloud UI panel renders nameless.
+services:
+  techtop_motor_controller:
+    build: ../
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - APP_KEY=techtop_motor_controller_1
+      - CONFIG_FP=/app/simulators/app_config.json

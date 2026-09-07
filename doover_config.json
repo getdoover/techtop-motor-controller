@@ -1,0 +1,905 @@
+{
+    "techtop_motor_controller": {
+        "name": "techtop_motor_controller",
+        "display_name": "Techtop Motor Controller",
+        "type": "DEV",
+        "visibility": "PUB",
+        "allow_many": true,
+        "description": "Monitor and control a Techtop TTA-3 (Invertek Optidrive E3) variable frequency drive over Modbus RTU, with start/stop/speed control from the UI and over RPC for other apps.",
+        "long_description": "README.md",
+        "depends_on": [
+            "modbus_interface",
+            "platform_interface"
+        ],
+        "organisation_id": null,
+        "image_name": "registry.doover.com/apps/techtop_motor_controller:main",
+        "build_args": "--platform linux/amd64,linux/arm64",
+        "repo_branch": "main",
+        "staging_config": {},
+        "config_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "",
+            "title": "$default",
+            "type": "object",
+            "properties": {
+                "modbus_config": {
+                    "title": "Modbus Config",
+                    "x-name": "modbus_config",
+                    "x-hidden": false,
+                    "type": "object",
+                    "x-required": true,
+                    "x-position": 0,
+                    "properties": {
+                        "bus_type": {
+                            "enum": [
+                                "serial",
+                                "tcp"
+                            ],
+                            "title": "Bus Type",
+                            "x-name": "bus_type",
+                            "x-hidden": false,
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": "serial",
+                            "x-position": 1
+                        },
+                        "name": {
+                            "title": "Name",
+                            "x-name": "name",
+                            "x-hidden": false,
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": "default",
+                            "x-position": 2
+                        },
+                        "serial_port": {
+                            "title": "Serial Port",
+                            "x-name": "serial_port",
+                            "x-hidden": false,
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": "/dev/ttyAMA0",
+                            "x-position": 3
+                        },
+                        "serial_baud": {
+                            "title": "Serial Baud",
+                            "x-name": "serial_baud",
+                            "x-hidden": false,
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": 115200,
+                            "x-position": 4
+                        },
+                        "serial_method": {
+                            "enum": [
+                                "rtu",
+                                "ascii",
+                                "socket",
+                                "tls"
+                            ],
+                            "title": "Serial Method",
+                            "x-name": "serial_method",
+                            "x-hidden": false,
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": "rtu",
+                            "x-position": 5
+                        },
+                        "serial_data_bits": {
+                            "title": "Serial Data Bits",
+                            "x-name": "serial_data_bits",
+                            "x-hidden": false,
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": 8,
+                            "x-position": 6
+                        },
+                        "serial_parity": {
+                            "enum": [
+                                "None",
+                                "Even",
+                                "Odd"
+                            ],
+                            "title": "Serial Parity",
+                            "x-name": "serial_parity",
+                            "x-hidden": false,
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": "None",
+                            "x-position": 7
+                        },
+                        "serial_stop_bits": {
+                            "title": "Serial Stop Bits",
+                            "x-name": "serial_stop_bits",
+                            "x-hidden": false,
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": 1,
+                            "x-position": 8
+                        },
+                        "serial_timeout": {
+                            "title": "Serial Timeout",
+                            "x-name": "serial_timeout",
+                            "x-hidden": false,
+                            "type": [
+                                "number",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": 0.5,
+                            "x-position": 9
+                        },
+                        "tcp_uri": {
+                            "title": "TCP URI",
+                            "x-name": "tcp_uri",
+                            "x-hidden": false,
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": "127.0.0.1:5000",
+                            "x-position": 10
+                        },
+                        "tcp_timeout": {
+                            "title": "TCP Timeout",
+                            "x-name": "tcp_timeout",
+                            "x-hidden": false,
+                            "type": [
+                                "number",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "default": 2.0,
+                            "x-position": 11
+                        }
+                    },
+                    "additionalElements": true,
+                    "required": [],
+                    "x-collapsible": true,
+                    "x-defaultCollapsed": false
+                },
+                "modbus_unit_id": {
+                    "title": "Modbus Unit ID",
+                    "x-name": "modbus_unit_id",
+                    "x-hidden": false,
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Drive Modbus address (P-36 index 1 on the drive). Factory default is 1.",
+                    "default": 1,
+                    "x-position": 1,
+                    "minimum": 0,
+                    "maximum": 63
+                },
+                "enable_output_pin": {
+                    "title": "Enable Output Pin",
+                    "x-name": "enable_output_pin",
+                    "x-hidden": false,
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Doovit digital output wired to drive terminal 2 (Digital Input 1, the hardware enable). The app holds it high while running and drops it on shutdown. Leave blank if the enable is wired some other way, e.g. a link from terminal 1 to 2.",
+                    "default": null,
+                    "x-position": 2,
+                    "minimum": 0
+                },
+                "control_enabled": {
+                    "title": "Control Enabled",
+                    "x-name": "control_enabled",
+                    "x-hidden": false,
+                    "type": [
+                        "boolean",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Allow this app to start, stop and set the speed of the drive (from the UI and over RPC). Off = monitor only; nothing is ever written to the drive.",
+                    "default": true,
+                    "x-position": 3
+                },
+                "max_frequency_hz": {
+                    "title": "Max Frequency (Hz)",
+                    "x-name": "max_frequency_hz",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Highest setpoint this app will send. Also capped by the drive's own P-01; a setpoint above P-01 is rejected by the drive.",
+                    "default": 50.0,
+                    "x-position": 4,
+                    "minimum": 0.0
+                },
+                "min_frequency_hz": {
+                    "title": "Min Frequency (Hz)",
+                    "x-name": "min_frequency_hz",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Lowest setpoint this app will send.",
+                    "default": 0.0,
+                    "x-position": 5,
+                    "minimum": 0.0
+                },
+                "default_frequency_hz": {
+                    "title": "Default Frequency (Hz)",
+                    "x-name": "default_frequency_hz",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Setpoint used for a start command that does not name a frequency.",
+                    "default": 50.0,
+                    "x-position": 6,
+                    "minimum": 0.0
+                },
+                "stop_mode": {
+                    "enum": [
+                        "ramp",
+                        "fast",
+                        "coast"
+                    ],
+                    "title": "Stop Mode",
+                    "x-name": "stop_mode",
+                    "x-hidden": false,
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "How a stop is performed: ramp down on the P-04 deceleration ramp, fast stop on the P-24 ramp, or coast (output disabled immediately).",
+                    "default": "ramp",
+                    "x-position": 7
+                },
+                "start_timeout_s": {
+                    "title": "Start Timeout (s)",
+                    "x-name": "start_timeout_s",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Seconds to wait for the drive to report Running after a start before giving up.",
+                    "default": 10.0,
+                    "x-position": 8,
+                    "minimum": 1.0
+                },
+                "stop_timeout_s": {
+                    "title": "Stop Timeout (s)",
+                    "x-name": "stop_timeout_s",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Seconds to wait for the drive to report stopped before warning.",
+                    "default": 60.0,
+                    "x-position": 9,
+                    "minimum": 1.0
+                },
+                "poll_interval_s": {
+                    "title": "Poll Interval (s)",
+                    "x-name": "poll_interval_s",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "How often the drive is polled and, while under Modbus control, the control word is refreshed. Keep this well under the drive's Modbus watchdog (P-36 index 3) if that is enabled.",
+                    "default": 1.0,
+                    "x-position": 10,
+                    "minimum": 0.2
+                },
+                "parameter_refresh_s": {
+                    "title": "Parameter Refresh (s)",
+                    "x-name": "parameter_refresh_s",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "How often the drive's parameters (control source, limits, motor rating) are re-read.",
+                    "default": 60.0,
+                    "x-position": 11,
+                    "minimum": 5.0
+                },
+                "comms_loss_timeout_s": {
+                    "title": "Comms Loss Timeout (s)",
+                    "x-name": "comms_loss_timeout_s",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Seconds without a Modbus reply before the drive is reported as disconnected.",
+                    "default": 30.0,
+                    "x-position": 12,
+                    "minimum": 1.0
+                },
+                "notifications": {
+                    "title": "Notifications",
+                    "x-name": "notifications",
+                    "x-hidden": false,
+                    "type": "object",
+                    "x-required": true,
+                    "description": "Which drive events post to the notifications channel.",
+                    "x-position": 13,
+                    "properties": {
+                        "notify_on_trip": {
+                            "title": "Notify on Trip",
+                            "x-name": "notify_on_trip",
+                            "x-hidden": false,
+                            "type": [
+                                "boolean",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "description": "Send a notification when the drive trips (with the trip code).",
+                            "default": true,
+                            "x-position": 1
+                        },
+                        "notify_on_comms_loss": {
+                            "title": "Notify on Comms Loss",
+                            "x-name": "notify_on_comms_loss",
+                            "x-hidden": false,
+                            "type": [
+                                "boolean",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "description": "Send a notification when the drive stops answering on Modbus.",
+                            "default": true,
+                            "x-position": 2
+                        },
+                        "notify_on_start": {
+                            "title": "Notify on Start",
+                            "x-name": "notify_on_start",
+                            "x-hidden": false,
+                            "type": [
+                                "boolean",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "description": "Send a notification each time the motor starts.",
+                            "default": false,
+                            "x-position": 3
+                        },
+                        "notify_on_stop": {
+                            "title": "Notify on Stop",
+                            "x-name": "notify_on_stop",
+                            "x-hidden": false,
+                            "type": [
+                                "boolean",
+                                "null"
+                            ],
+                            "x-required": false,
+                            "description": "Send a notification each time the motor stops.",
+                            "default": false,
+                            "x-position": 4
+                        }
+                    },
+                    "additionalElements": true,
+                    "required": [],
+                    "x-collapsible": true,
+                    "x-defaultCollapsed": false
+                },
+                "dv_app_position": {
+                    "title": "Position",
+                    "x-name": "dv_app_position",
+                    "x-hidden": true,
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Position of Application in UI Structure. Smaller numbers are closer to the top.",
+                    "default": 100,
+                    "x-position": 14,
+                    "minimum": 0
+                }
+            },
+            "additionalElements": true,
+            "required": [
+                "modbus_config",
+                "notifications"
+            ]
+        },
+        "ui_schema": {
+            "displayString": "$tag.app().app_display_name:string:\"Motor Controller\"",
+            "hidden": "$config.app().interpreter_hidden:boolean:false",
+            "fullWidth": "$config.app().interpreter_full_width:boolean:false",
+            "position": "$config.app().dv_app_position:number:100",
+            "icon": null,
+            "colour": null,
+            "defaultOpen": "$config.app().dv_app_default_open:boolean",
+            "type": "uiApplication",
+            "name": "$config.app().APP_KEY",
+            "children": {
+                "no_comms_warning": {
+                    "name": "no_comms_warning",
+                    "type": "uiWarningIndicator",
+                    "displayString": "No communications with drive",
+                    "position": 51,
+                    "hidden": "$tag.app().hide_no_comms_warning:boolean:true",
+                    "currentValue": "$cmds.app().no_comms_warning",
+                    "can_cancel": false
+                },
+                "trip_warning": {
+                    "name": "trip_warning",
+                    "type": "uiWarningIndicator",
+                    "displayString": "$tag.app().trip_label:string:\"Drive tripped\"",
+                    "position": 52,
+                    "hidden": "$tag.app().hide_trip_warning:boolean:true",
+                    "currentValue": "$cmds.app().trip_warning",
+                    "can_cancel": false
+                },
+                "not_enabled_warning": {
+                    "name": "not_enabled_warning",
+                    "type": "uiWarningIndicator",
+                    "displayString": "Drive not enabled: hardware enable (DI1) is open",
+                    "position": 53,
+                    "hidden": "$tag.app().hide_not_enabled_warning:boolean:true",
+                    "currentValue": "$cmds.app().not_enabled_warning",
+                    "can_cancel": false
+                },
+                "not_modbus_warning": {
+                    "name": "not_modbus_warning",
+                    "type": "uiWarningIndicator",
+                    "displayString": "Drive not in Modbus control: set P-12 = 3 on the keypad",
+                    "position": 54,
+                    "hidden": "$tag.app().hide_not_modbus_warning:boolean:true",
+                    "currentValue": "$cmds.app().not_modbus_warning",
+                    "can_cancel": false
+                },
+                "control_disabled_warning": {
+                    "name": "control_disabled_warning",
+                    "type": "uiWarningIndicator",
+                    "displayString": "Control disabled in configuration (monitor only)",
+                    "position": 55,
+                    "hidden": "$tag.app().hide_control_disabled_warning:boolean:true",
+                    "currentValue": "$cmds.app().control_disabled_warning",
+                    "can_cancel": false
+                },
+                "output_frequency": {
+                    "name": "output_frequency",
+                    "type": "uiVariable",
+                    "displayString": "Output Frequency",
+                    "showActivity": true,
+                    "form": "radialGauge",
+                    "position": 56,
+                    "hidden": false,
+                    "units": "Hz",
+                    "icon": "gauge",
+                    "varType": "float",
+                    "currentValue": "$tag.app().output_frequency_hz:number:null",
+                    "decPrecision": 1,
+                    "live": true
+                },
+                "motor_current": {
+                    "name": "motor_current",
+                    "type": "uiVariable",
+                    "displayString": "Motor Current",
+                    "showActivity": true,
+                    "position": 57,
+                    "hidden": false,
+                    "units": "A",
+                    "icon": "wave-square",
+                    "varType": "float",
+                    "currentValue": "$tag.app().motor_current_a:number:null",
+                    "decPrecision": 1,
+                    "live": true
+                },
+                "motor_power": {
+                    "name": "motor_power",
+                    "type": "uiVariable",
+                    "displayString": "Motor Power",
+                    "showActivity": true,
+                    "position": 58,
+                    "hidden": false,
+                    "units": "kW",
+                    "icon": "bolt",
+                    "varType": "float",
+                    "currentValue": "$tag.app().motor_power_kw:number:null",
+                    "decPrecision": 2,
+                    "live": true
+                },
+                "motor_torque": {
+                    "name": "motor_torque",
+                    "type": "uiVariable",
+                    "displayString": "Motor Torque",
+                    "showActivity": true,
+                    "position": 59,
+                    "hidden": false,
+                    "units": "%",
+                    "icon": "rotate",
+                    "varType": "float",
+                    "currentValue": "$tag.app().torque_pct:number:null",
+                    "decPrecision": 0,
+                    "live": true
+                },
+                "drive_state": {
+                    "name": "drive_state",
+                    "type": "uiVariable",
+                    "displayString": "Drive State",
+                    "showActivity": true,
+                    "position": 60,
+                    "hidden": false,
+                    "icon": "circle-info",
+                    "varType": "string",
+                    "currentValue": "$tag.app().drive_state:string:\"disconnected\""
+                },
+                "frequency_setpoint": {
+                    "name": "frequency_setpoint",
+                    "type": "uiSlider",
+                    "displayString": "Frequency Setpoint",
+                    "helpString": "Target output frequency. Takes effect immediately while running, and is used by the next start otherwise.",
+                    "position": 61,
+                    "hidden": "$tag.app().hide_setpoint:boolean:true",
+                    "units": "Hz",
+                    "currentValue": "$cmds.app().frequency_setpoint",
+                    "requiresConfirm": {
+                        "title": "Confirm speed change",
+                        "warningReason": "A running motor ramps to the new setpoint immediately."
+                    },
+                    "min": 0,
+                    "max": 50,
+                    "stepSize": 0.5,
+                    "dualSlider": false,
+                    "isInverted": false
+                },
+                "start_button": {
+                    "name": "start_button",
+                    "type": "uiButton",
+                    "displayString": "Start",
+                    "position": 62,
+                    "hidden": "$tag.app().hide_start_button:boolean:true",
+                    "colour": "green",
+                    "currentValue": "$cmds.app().start_button",
+                    "requiresConfirm": {
+                        "title": "Start Motor",
+                        "warningReason": "Send a run command to the drive.",
+                        "audit": true
+                    }
+                },
+                "stop_button": {
+                    "name": "stop_button",
+                    "type": "uiButton",
+                    "displayString": "Stop",
+                    "position": 63,
+                    "hidden": "$tag.app().hide_stop_button:boolean:true",
+                    "colour": "red",
+                    "currentValue": "$cmds.app().stop_button",
+                    "requiresConfirm": {
+                        "title": "Stop Motor",
+                        "warningReason": "The drive will stop the motor.",
+                        "audit": true
+                    }
+                },
+                "reset_button": {
+                    "name": "reset_button",
+                    "type": "uiButton",
+                    "displayString": "Reset Trip",
+                    "position": 64,
+                    "hidden": "$tag.app().hide_reset_button:boolean:true",
+                    "currentValue": "$cmds.app().reset_button",
+                    "requiresConfirm": {
+                        "title": "Reset Trip",
+                        "warningReason": "Clear the latched trip on the drive. The motor does not restart.",
+                        "audit": true
+                    }
+                },
+                "details": {
+                    "name": "details",
+                    "type": "uiSubmodule",
+                    "displayString": "Details",
+                    "showActivity": true,
+                    "position": 85,
+                    "hidden": false,
+                    "children": {
+                        "setpoint_readback": {
+                            "name": "setpoint_readback",
+                            "type": "uiVariable",
+                            "displayString": "Setpoint (drive)",
+                            "showActivity": true,
+                            "position": 65,
+                            "hidden": false,
+                            "units": "Hz",
+                            "varType": "float",
+                            "currentValue": "$tag.app().frequency_setpoint_hz:number:null",
+                            "decPrecision": 1,
+                            "live": true
+                        },
+                        "control_source": {
+                            "name": "control_source",
+                            "type": "uiVariable",
+                            "displayString": "Control Source",
+                            "showActivity": true,
+                            "position": 66,
+                            "hidden": false,
+                            "varType": "string",
+                            "currentValue": "$tag.app().control_source:string:null"
+                        },
+                        "controller_state": {
+                            "name": "controller_state",
+                            "type": "uiVariable",
+                            "displayString": "Controller State",
+                            "showActivity": true,
+                            "position": 67,
+                            "hidden": false,
+                            "varType": "string",
+                            "currentValue": "$tag.app().controller_state:string:\"disconnected\""
+                        },
+                        "direction": {
+                            "name": "direction",
+                            "type": "uiVariable",
+                            "displayString": "Direction",
+                            "showActivity": true,
+                            "position": 68,
+                            "hidden": false,
+                            "varType": "string",
+                            "currentValue": "$tag.app().direction:string:\"forward\""
+                        },
+                        "output_voltage": {
+                            "name": "output_voltage",
+                            "type": "uiVariable",
+                            "displayString": "Output Voltage",
+                            "showActivity": true,
+                            "position": 69,
+                            "hidden": false,
+                            "units": "V",
+                            "varType": "float",
+                            "currentValue": "$tag.app().output_voltage_v:number:null",
+                            "decPrecision": 0,
+                            "live": true
+                        },
+                        "dc_bus_voltage": {
+                            "name": "dc_bus_voltage",
+                            "type": "uiVariable",
+                            "displayString": "DC Bus Voltage",
+                            "showActivity": true,
+                            "position": 70,
+                            "hidden": false,
+                            "units": "V",
+                            "varType": "float",
+                            "currentValue": "$tag.app().dc_bus_voltage_v:number:null",
+                            "decPrecision": 0,
+                            "ranges": [
+                                {
+                                    "min": 0,
+                                    "max": 450,
+                                    "colour": "red",
+                                    "show_on_graph": true
+                                },
+                                {
+                                    "min": 450,
+                                    "max": 750,
+                                    "colour": "green",
+                                    "show_on_graph": true
+                                },
+                                {
+                                    "min": 750,
+                                    "max": 900,
+                                    "colour": "red",
+                                    "show_on_graph": true
+                                }
+                            ],
+                            "live": true
+                        },
+                        "heatsink_temp": {
+                            "name": "heatsink_temp",
+                            "type": "uiVariable",
+                            "displayString": "Heatsink Temperature",
+                            "showActivity": true,
+                            "position": 71,
+                            "hidden": false,
+                            "units": "\u00b0C",
+                            "varType": "float",
+                            "currentValue": "$tag.app().heatsink_temp_c:number:null",
+                            "decPrecision": 0,
+                            "ranges": [
+                                {
+                                    "min": -10,
+                                    "max": 70,
+                                    "colour": "green",
+                                    "show_on_graph": true
+                                },
+                                {
+                                    "min": 70,
+                                    "max": 85,
+                                    "colour": "yellow",
+                                    "show_on_graph": true
+                                },
+                                {
+                                    "min": 85,
+                                    "max": 120,
+                                    "colour": "red",
+                                    "show_on_graph": true
+                                }
+                            ]
+                        },
+                        "internal_temp": {
+                            "name": "internal_temp",
+                            "type": "uiVariable",
+                            "displayString": "Internal Temperature",
+                            "showActivity": true,
+                            "position": 72,
+                            "hidden": false,
+                            "units": "\u00b0C",
+                            "varType": "float",
+                            "currentValue": "$tag.app().internal_temp_c:number:null",
+                            "decPrecision": 0
+                        },
+                        "run_hours": {
+                            "name": "run_hours",
+                            "type": "uiVariable",
+                            "displayString": "Run Hours",
+                            "showActivity": true,
+                            "position": 73,
+                            "hidden": false,
+                            "units": "h",
+                            "varType": "float",
+                            "currentValue": "$tag.app().run_hours:number:null",
+                            "decPrecision": 1
+                        },
+                        "energy": {
+                            "name": "energy",
+                            "type": "uiVariable",
+                            "displayString": "Energy",
+                            "showActivity": true,
+                            "position": 74,
+                            "hidden": false,
+                            "units": "kWh",
+                            "varType": "float",
+                            "currentValue": "$tag.app().energy_kwh:number:null",
+                            "decPrecision": 1
+                        },
+                        "drive_max_frequency": {
+                            "name": "drive_max_frequency",
+                            "type": "uiVariable",
+                            "displayString": "Drive Max Frequency (P-01)",
+                            "showActivity": true,
+                            "position": 75,
+                            "hidden": false,
+                            "units": "Hz",
+                            "varType": "float",
+                            "currentValue": "$tag.app().drive_max_frequency_hz:number:null",
+                            "decPrecision": 1
+                        },
+                        "motor_rated_current": {
+                            "name": "motor_rated_current",
+                            "type": "uiVariable",
+                            "displayString": "Motor Rated Current (P-08)",
+                            "showActivity": true,
+                            "position": 76,
+                            "hidden": false,
+                            "units": "A",
+                            "varType": "float",
+                            "currentValue": "$tag.app().motor_rated_current_a:number:null",
+                            "decPrecision": 1
+                        },
+                        "di1": {
+                            "name": "di1",
+                            "type": "uiVariable",
+                            "displayString": "Enable (DI1)",
+                            "showActivity": true,
+                            "position": 77,
+                            "hidden": false,
+                            "varType": "bool",
+                            "currentValue": "$tag.app().di1:boolean:false"
+                        },
+                        "di2": {
+                            "name": "di2",
+                            "type": "uiVariable",
+                            "displayString": "Digital Input 2",
+                            "showActivity": true,
+                            "position": 78,
+                            "hidden": false,
+                            "varType": "bool",
+                            "currentValue": "$tag.app().di2:boolean:false"
+                        },
+                        "di3": {
+                            "name": "di3",
+                            "type": "uiVariable",
+                            "displayString": "Digital Input 3",
+                            "showActivity": true,
+                            "position": 79,
+                            "hidden": false,
+                            "varType": "bool",
+                            "currentValue": "$tag.app().di3:boolean:false"
+                        },
+                        "di4": {
+                            "name": "di4",
+                            "type": "uiVariable",
+                            "displayString": "Digital Input 4",
+                            "showActivity": true,
+                            "position": 80,
+                            "hidden": false,
+                            "varType": "bool",
+                            "currentValue": "$tag.app().di4:boolean:false"
+                        },
+                        "relay_closed": {
+                            "name": "relay_closed",
+                            "type": "uiVariable",
+                            "displayString": "Relay Closed",
+                            "showActivity": true,
+                            "position": 81,
+                            "hidden": false,
+                            "varType": "bool",
+                            "currentValue": "$tag.app().relay_closed:boolean:false"
+                        },
+                        "at_speed": {
+                            "name": "at_speed",
+                            "type": "uiVariable",
+                            "displayString": "At Speed",
+                            "showActivity": true,
+                            "position": 82,
+                            "hidden": false,
+                            "varType": "bool",
+                            "currentValue": "$tag.app().at_speed:boolean:false"
+                        },
+                        "mains_loss": {
+                            "name": "mains_loss",
+                            "type": "uiVariable",
+                            "displayString": "Mains Loss",
+                            "showActivity": true,
+                            "position": 83,
+                            "hidden": false,
+                            "varType": "bool",
+                            "currentValue": "$tag.app().mains_loss:boolean:false"
+                        },
+                        "overload": {
+                            "name": "overload",
+                            "type": "uiVariable",
+                            "displayString": "Overload",
+                            "showActivity": true,
+                            "position": 84,
+                            "hidden": false,
+                            "varType": "bool",
+                            "currentValue": "$tag.app().overload:boolean:false"
+                        }
+                    },
+                    "defaultOpen": false
+                }
+            }
+        }
+    }
+}

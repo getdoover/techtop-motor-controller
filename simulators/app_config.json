@@ -1,0 +1,30 @@
+{
+    "APP_KEY": "techtop_motor_controller_1",
+    "APP_DISPLAY_NAME": "Techtop Motor Controller",
+    "modbus_config": {
+        "type": "serial",
+        "name": "default",
+        "serial_port": "/dev/ttyAMA0",
+        "serial_baud": 115200,
+        "serial_method": "rtu",
+        "serial_data_bits": 8,
+        "serial_parity": "None",
+        "serial_stop_bits": 1,
+        "serial_timeout": 0.5,
+        "tcp_uri": "127.0.0.1:5000",
+        "tcp_timeout": 2.0
+    },
+    "modbus_unit_id": 1,
+    "enable_output_pin": 0,
+    "control_enabled": true,
+    "max_frequency_hz": 50.0,
+    "min_frequency_hz": 0.0,
+    "default_frequency_hz": 25.0,
+    "poll_interval_s": 1.0,
+    "notifications": {
+        "on_trip": true,
+        "on_comms_loss": true,
+        "on_start": true,
+        "on_stop": true
+    }
+}

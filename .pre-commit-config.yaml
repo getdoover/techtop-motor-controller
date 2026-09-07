@@ -1,0 +1,26 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: uv run --dev pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # Invoke doover-cli via uvx so it's resolved deterministically -- a bare
+      # `doover` can hit the legacy CLI at /usr/local/bin/doover depending on
+      # PATH order (it lacks the config-schema/ui-schema commands).
+      - id: doover-config-schema-validate
+        name: doover config-schema validate
+        entry: uvx --from doover-cli doover config-schema validate
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: doover-ui-schema-validate
+        name: doover ui-schema validate
+        entry: uvx --from doover-cli doover ui-schema validate
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -129,7 +129,7 @@ class TechtopMotorControllerApplication(Application):
             self.controller.request_stop()
             try:
                 await self._tick()
-            except Exception as e:  # never let the shutdown hook raise
+            except Exception as e:  # noqa: BLE001 - the shutdown hook must never raise
                 log.warning("Stop on shutdown failed: %s", e)
         await self._assert_enable(False)
 
@@ -245,7 +245,7 @@ class TechtopMotorControllerApplication(Application):
             return
         try:
             await self.platform_iface.set_do(pin, bool(high))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a flaky DO must not stop the poll loop
             log.warning("Could not set enable output DO%s: %s", pin, e)
 
     # ------------------------------------------------------------------
@@ -592,7 +592,7 @@ class TechtopMotorControllerApplication(Application):
                     "severity": severity,
                 },
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - notifications are best effort
             log.warning("Notification failed: %s", e)
 
     async def _check_notifications(self, status: DriveStatus, state: str):

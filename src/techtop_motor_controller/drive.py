@@ -183,7 +183,7 @@ def to_unsigned16(value: int) -> int:
 
 def hz_to_setpoint_raw(frequency_hz: float) -> int:
     """Register 2 value for a frequency; sign carries direction."""
-    return to_unsigned16(int(round(frequency_hz * 10)))
+    return to_unsigned16(round(frequency_hz * 10))
 
 
 def setpoint_raw_to_hz(raw: int) -> float:

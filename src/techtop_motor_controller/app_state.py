@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from pydoover.state import StateMachine
 
@@ -59,9 +59,9 @@ STATES = [
 class MotorController:
     """Sequences start / stop / reset against the drive's reported state."""
 
-    states = STATES
+    states: ClassVar[list[str]] = STATES
 
-    transitions = [
+    transitions: ClassVar[list[dict]] = [
         # Comms
         {"trigger": "comms_lost", "source": "*", "dest": DISCONNECTED},
         {"trigger": "comms_restored", "source": DISCONNECTED, "dest": NOT_READY},

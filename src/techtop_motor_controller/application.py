@@ -71,6 +71,10 @@ class TechtopMotorControllerApplication(Application):
     # ------------------------------------------------------------------
 
     async def setup(self):
+        # `transitions` logs every callback at INFO; the controller logs the
+        # transitions that matter itself.
+        logging.getLogger("transitions").setLevel(logging.WARNING)
+
         cfg = self.config
         self.loop_target_period = float(cfg.poll_interval_s.value)
 

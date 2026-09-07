@@ -54,6 +54,7 @@ SEVERITY_INFO = "Info"
 SEVERITY_WARN = "Warn"
 
 METER_REFRESH_S = 30.0
+SUMMARY_LOG_INTERVAL_S = 60.0
 DIRECTIONS = ("forward", "reverse")
 
 
@@ -96,6 +97,7 @@ class TechtopMotorControllerApplication(Application):
         self._prev_running: bool | None = None
         self._prev_trip: tuple[bool, int] | None = None
         self._tick_lock = asyncio.Lock()
+        self._last_summary_log: float = 0.0
 
         await self._assert_enable(True)
         log.info(
@@ -192,6 +194,32 @@ class TechtopMotorControllerApplication(Application):
 
         await self._update_tags(status, state)
         await self._check_notifications(status, state)
+        self._log_summary(status, state, now)
+
+    def _log_summary(self, status: DriveStatus, state: str, now: float):
+        """A one-line heartbeat so `docker logs` shows the loop is alive."""
+        if now - self._last_summary_log < SUMMARY_LOG_INTERVAL_S:
+            return
+        self._last_summary_log = now
+        if not status.contactable:
+            log.info("Drive: no comms (controller %s)", state)
+            return
+        log.info(
+            "Drive %s (controller %s, P-12 %s): out %.1f Hz, set %s Hz, %.1f A, %.2f kW, DC %.0f V, "
+            "heatsink %.0f C, DI1 %s, trip %s, cw 0x%02x",
+            status.state_name,
+            state,
+            self.params.control_source,
+            status.output_frequency_hz,
+            status.frequency_setpoint_hz,
+            status.motor_current_a,
+            status.motor_power_kw,
+            status.dc_bus_voltage_v,
+            status.heatsink_temp_c,
+            "on" if status.di1 else "off",
+            status.trip_code if status.tripped else "-",
+            self.controller.control_word(),
+        )
 
     async def _refresh_parameters(self, now: float):
         params = await self.drive.read_parameters()

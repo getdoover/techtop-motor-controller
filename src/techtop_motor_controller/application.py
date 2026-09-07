@@ -30,6 +30,7 @@ from datetime import datetime
 
 from pydoover import ui
 from pydoover.docker import Application
+from pydoover.rpc import DEFAULT_CHANNEL as RPC_CHANNEL
 from pydoover.rpc import RPCError
 from pydoover.rpc import handler as rpc_handler
 
@@ -388,6 +389,10 @@ class TechtopMotorControllerApplication(Application):
     #
     # From another app:  await self.rpc.call("start", params={"frequency_hz": 30},
     #                                        app_key="techtop_motor_controller_1")
+    #
+    # The channel must be named: RPCManager only subscribes to a handler's
+    # channel when one is given, so a channel-less handler never hears the
+    # default `dv-rpc` channel that `rpc.call()` publishes on.
 
     @staticmethod
     def _rpc_source(ctx) -> str:
@@ -396,7 +401,7 @@ class TechtopMotorControllerApplication(Application):
             return f"rpc:{actor['name']}"
         return "rpc"
 
-    @rpc_handler("start")
+    @rpc_handler("start", channel=RPC_CHANNEL)
     async def rpc_start(self, ctx, payload):
         payload = payload or {}
         await self.command_start(
@@ -406,13 +411,13 @@ class TechtopMotorControllerApplication(Application):
         )
         return self.status_dict()
 
-    @rpc_handler("stop")
+    @rpc_handler("stop", channel=RPC_CHANNEL)
     async def rpc_stop(self, ctx, payload):
         payload = payload or {}
         await self.command_stop(payload.get("mode"), source=self._rpc_source(ctx))
         return self.status_dict()
 
-    @rpc_handler("set_frequency")
+    @rpc_handler("set_frequency", channel=RPC_CHANNEL)
     async def rpc_set_frequency(self, ctx, payload):
         payload = payload or {}
         if "frequency_hz" not in payload:
@@ -424,12 +429,12 @@ class TechtopMotorControllerApplication(Application):
         )
         return self.status_dict()
 
-    @rpc_handler("reset_fault")
+    @rpc_handler("reset_fault", channel=RPC_CHANNEL)
     async def rpc_reset_fault(self, ctx, payload):
         await self.command_reset(source=self._rpc_source(ctx))
         return self.status_dict()
 
-    @rpc_handler("get_status")
+    @rpc_handler("get_status", channel=RPC_CHANNEL)
     async def rpc_get_status(self, ctx, payload):
         return self.status_dict()
 

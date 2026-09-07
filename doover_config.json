@@ -14,7 +14,6 @@
         "organisation_id": null,
         "image_name": "registry.doover.com/apps/techtop_motor_controller:main",
         "build_args": "--platform linux/amd64,linux/arm64",
-        "repo_branch": "main",
         "staging_config": {},
         "config_schema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",

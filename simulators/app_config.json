@@ -2,7 +2,7 @@
     "APP_KEY": "techtop_motor_controller_1",
     "APP_DISPLAY_NAME": "Techtop Motor Controller",
     "modbus_config": {
-        "type": "serial",
+        "bus_type": "serial",
         "name": "default",
         "serial_port": "/dev/ttyAMA0",
         "serial_baud": 115200,

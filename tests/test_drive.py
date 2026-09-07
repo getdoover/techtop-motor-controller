@@ -25,7 +25,24 @@ BENCH_NOT_READY = [0x8000, 0, 0, 0, 512, 0, 592, 30, 0, 0, 0, 0, 39, 0, 0, 0]
 # Same drive with DI1 closed while still in terminal mode (P-12 = 0): DI1 is
 # the run command there, so the drive reports ready + running + at-speed
 # (0x43) with a 0 Hz reference. IO word carries DI1 + relay.
-BENCH_ENABLED_TERMINAL_MODE = [0x0043, 0, 0, 0, 513, 0, 592, 30, 0, 0, 0, 0, 39, 0, 0, 0]
+BENCH_ENABLED_TERMINAL_MODE = [
+    0x0043,
+    0,
+    0,
+    0,
+    513,
+    0,
+    592,
+    30,
+    0,
+    0,
+    0,
+    0,
+    39,
+    0,
+    0,
+    0,
+]
 # Ready and idle, as the drive reports once P-12 = 3: ready + at-speed only.
 BENCH_READY = [0x0041, 0, 0, 0, 513, 0, 592, 30, 0, 0, 0, 0, 39, 0, 0, 0]
 # Registers 129-140 (P-01..P-12) from the bench: internal formats.
@@ -154,7 +171,9 @@ class FakeModbus:
         self.writes = []
         self.fail_writes = False
 
-    async def read_registers(self, modbus_id, start_address, num_registers, register_type, bus=None, **kw):
+    async def read_registers(
+        self, modbus_id, start_address, num_registers, register_type, bus=None, **kw
+    ):
         assert register_type == 4
         values = []
         for a in range(start_address, start_address + num_registers):
@@ -163,7 +182,9 @@ class FakeModbus:
             values.append(self.registers[a])
         return values[0] if num_registers == 1 else values
 
-    async def write_registers(self, modbus_id, start_address, values, register_type, bus=None, **kw):
+    async def write_registers(
+        self, modbus_id, start_address, values, register_type, bus=None, **kw
+    ):
         assert register_type == 4
         assert len(values) == 1, "the E3 only accepts single-register writes"
         if self.fail_writes:

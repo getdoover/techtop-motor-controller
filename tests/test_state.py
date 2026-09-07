@@ -13,7 +13,13 @@ from techtop_motor_controller.app_state import (
     TRIPPED,
     MotorController,
 )
-from techtop_motor_controller.drive import CW_COAST_STOP, CW_FAST_STOP, CW_RESET, CW_RUN, DriveStatus
+from techtop_motor_controller.drive import (
+    CW_COAST_STOP,
+    CW_FAST_STOP,
+    CW_RESET,
+    CW_RUN,
+    DriveStatus,
+)
 
 
 class Clock:
@@ -27,7 +33,9 @@ class Clock:
         self.now += seconds
 
 
-def status(*, ready=True, running=False, tripped=False, trip_code=0, di1=True, standby=False):
+def status(
+    *, ready=True, running=False, tripped=False, trip_code=0, di1=True, standby=False
+):
     return DriveStatus(
         contactable=True,
         ready=ready,
@@ -53,7 +61,9 @@ def make(clock=None, **kw):
 async def test_boot_sequence_to_ready():
     c = make()
     assert c.state == DISCONNECTED
-    assert await c.spin(status(ready=False, di1=False), control_allowed=True) == NOT_READY
+    assert (
+        await c.spin(status(ready=False, di1=False), control_allowed=True) == NOT_READY
+    )
     assert await c.spin(status(), control_allowed=True) == READY
     assert c.control_word() == 0
     assert c.can_start and not c.can_stop and not c.can_reset
@@ -127,13 +137,23 @@ async def test_trip_clears_run_request_and_reset_never_restarts():
     await c.spin(status(running=True), control_allowed=True)
     assert c.state == RUNNING and c.run_requested
 
-    assert await c.spin(status(tripped=True, trip_code=7, ready=False), control_allowed=True) == TRIPPED
+    assert (
+        await c.spin(
+            status(tripped=True, trip_code=7, ready=False), control_allowed=True
+        )
+        == TRIPPED
+    )
     assert not c.run_requested
     assert c.control_word() == 0
     assert c.can_reset
 
     c.request_reset()
-    assert await c.spin(status(tripped=True, trip_code=7, ready=False), control_allowed=True) == RESETTING
+    assert (
+        await c.spin(
+            status(tripped=True, trip_code=7, ready=False), control_allowed=True
+        )
+        == RESETTING
+    )
     assert c.control_word() == CW_RESET
     # trip clears -> not_ready (enable evaluated next), run bit stays clear
     assert await c.spin(status(ready=True), control_allowed=True) == READY
@@ -151,7 +171,9 @@ async def test_reset_timeout_falls_back_to_tripped():
     await c.spin(status(tripped=True, ready=False), control_allowed=True)
     assert c.state == RESETTING
     clock.advance(6)
-    assert await c.spin(status(tripped=True, ready=False), control_allowed=True) == TRIPPED
+    assert (
+        await c.spin(status(tripped=True, ready=False), control_allowed=True) == TRIPPED
+    )
 
 
 @pytest.mark.asyncio
@@ -159,7 +181,10 @@ async def test_reset_request_ignored_without_control():
     c = make()
     await c.spin(status(tripped=True, ready=False), control_allowed=False)
     c.request_reset()
-    assert await c.spin(status(tripped=True, ready=False), control_allowed=False) == TRIPPED
+    assert (
+        await c.spin(status(tripped=True, ready=False), control_allowed=False)
+        == TRIPPED
+    )
 
 
 @pytest.mark.asyncio
@@ -181,7 +206,12 @@ async def test_adopts_a_drive_already_running():
 async def test_external_stop_while_running():
     c = make()
     await c.spin(status(running=True), control_allowed=True)
-    assert await c.spin(status(running=False, ready=False, di1=False), control_allowed=True) == NOT_READY
+    assert (
+        await c.spin(
+            status(running=False, ready=False, di1=False), control_allowed=True
+        )
+        == NOT_READY
+    )
     assert not c.run_requested
 
 
@@ -191,7 +221,9 @@ async def test_enable_dropped_while_starting():
     await c.spin(status(), control_allowed=True)
     c.request_start()
     await c.spin(status(), control_allowed=True)
-    assert await c.spin(status(ready=False, di1=False), control_allowed=True) == NOT_READY
+    assert (
+        await c.spin(status(ready=False, di1=False), control_allowed=True) == NOT_READY
+    )
 
 
 @pytest.mark.asyncio

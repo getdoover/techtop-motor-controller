@@ -238,7 +238,9 @@ class TechtopMotorControllerUI(ui.UI, display_name=Tags.app_display_name):
             ui.BooleanVariable("Digital Input 2", name="di2", value=Tags.di2),
             ui.BooleanVariable("Digital Input 3", name="di3", value=Tags.di3),
             ui.BooleanVariable("Digital Input 4", name="di4", value=Tags.di4),
-            ui.BooleanVariable("Relay Closed", name="relay_closed", value=Tags.relay_closed),
+            ui.BooleanVariable(
+                "Relay Closed", name="relay_closed", value=Tags.relay_closed
+            ),
             ui.BooleanVariable("At Speed", name="at_speed", value=Tags.at_speed),
             ui.BooleanVariable("Mains Loss", name="mains_loss", value=Tags.mains_loss),
             ui.BooleanVariable("Overload", name="overload", value=Tags.overload),

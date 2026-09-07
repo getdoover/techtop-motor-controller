@@ -20,7 +20,9 @@ TEST_CONFIG = {
 
 
 def make_app():
-    app = TechtopMotorControllerApplication(app_key="techtop_motor_controller_1", test_mode=True)
+    app = TechtopMotorControllerApplication(
+        app_key="techtop_motor_controller_1", test_mode=True
+    )
     app.config._inject_deployment_config(dict(TEST_CONFIG))
     return app
 

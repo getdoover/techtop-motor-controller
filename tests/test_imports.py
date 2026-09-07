@@ -56,5 +56,11 @@ def test_ui_export(tmp_path):
     TechtopMotorControllerUI(None, None, None).export(fp, "techtop_motor_controller")
     data = json.loads(fp.read_text())
     children = data["techtop_motor_controller"]["ui_schema"]["children"]
-    for name in ("start_button", "stop_button", "reset_button", "frequency_setpoint", "output_frequency"):
+    for name in (
+        "start_button",
+        "stop_button",
+        "reset_button",
+        "frequency_setpoint",
+        "output_frequency",
+    ):
         assert name in children

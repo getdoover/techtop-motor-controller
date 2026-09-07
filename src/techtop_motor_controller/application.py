@@ -37,7 +37,6 @@ from .app_config import TechtopMotorControllerConfig
 from .app_state import (
     DISCONNECTED,
     NOT_READY,
-    RUNNING,
     STARTING,
     STOP_MODES,
     TRIPPED,
@@ -79,14 +78,18 @@ class TechtopMotorControllerApplication(Application):
         cfg = self.config
         self.loop_target_period = float(cfg.poll_interval_s.value)
 
-        self.drive = TechtopDrive(self.modbus_iface, unit_id=int(cfg.modbus_unit_id.value))
+        self.drive = TechtopDrive(
+            self.modbus_iface, unit_id=int(cfg.modbus_unit_id.value)
+        )
         self.controller = MotorController(
             start_timeout_s=float(cfg.start_timeout_s.value),
             stop_timeout_s=float(cfg.stop_timeout_s.value),
             default_stop_mode=str(cfg.stop_mode.value),
             on_state_change=self._on_controller_state_change,
         )
-        self.controller.setpoint_hz = cfg.clamp_frequency(cfg.default_frequency_hz.value)
+        self.controller.setpoint_hz = cfg.clamp_frequency(
+            cfg.default_frequency_hz.value
+        )
         self._restore_setpoint_from_ui()
 
         self.params = DriveParameters()
@@ -145,7 +148,9 @@ class TechtopMotorControllerApplication(Application):
 
     @property
     def contactable(self) -> bool:
-        return self.controller.state != DISCONNECTED and self.drive.last_status.contactable
+        return (
+            self.controller.state != DISCONNECTED and self.drive.last_status.contactable
+        )
 
     # ------------------------------------------------------------------
     # The poll / control cycle
@@ -170,9 +175,8 @@ class TechtopMotorControllerApplication(Application):
             self._last_contact = now
             if include_meters:
                 self._meters_read_at = now
-            if (
-                self._params_read_at is None
-                or now - self._params_read_at > float(cfg.parameter_refresh_s.value)
+            if self._params_read_at is None or now - self._params_read_at > float(
+                cfg.parameter_refresh_s.value
             ):
                 await self._refresh_parameters(now)
         else:
@@ -180,7 +184,10 @@ class TechtopMotorControllerApplication(Application):
             # period passes, then let the controller see the disconnect.
             grace = float(cfg.comms_loss_timeout_s.value)
             if self._last_contact is not None and now - self._last_contact < grace:
-                log.warning("Drive did not answer; %.0fs until reported disconnected", grace - (now - self._last_contact))
+                log.warning(
+                    "Drive did not answer; %.0fs until reported disconnected",
+                    grace - (now - self._last_contact),
+                )
                 return
 
         state = await self.controller.spin(status, control_allowed=self.control_allowed)
@@ -190,7 +197,9 @@ class TechtopMotorControllerApplication(Application):
                 self.controller.control_word(), self.controller.signed_setpoint_hz()
             )
             if not ok:
-                log.warning("Control word / setpoint write was not acknowledged by the drive")
+                log.warning(
+                    "Control word / setpoint write was not acknowledged by the drive"
+                )
 
         await self._update_tags(status, state)
         await self._check_notifications(status, state)
@@ -245,7 +254,9 @@ class TechtopMotorControllerApplication(Application):
 
     def _require_control(self):
         if not self.control_enabled:
-            raise RPCError("CONTROL_DISABLED", "Control is disabled in this app's configuration")
+            raise RPCError(
+                "CONTROL_DISABLED", "Control is disabled in this app's configuration"
+            )
         if not self.contactable:
             raise RPCError("NOT_CONNECTED", "No communications with the drive")
         if not self.params.modbus_control:
@@ -259,9 +270,14 @@ class TechtopMotorControllerApplication(Application):
         try:
             value = float(frequency_hz)
         except (TypeError, ValueError):
-            raise RPCError("INVALID_FREQUENCY", f"frequency_hz must be a number, got {frequency_hz!r}")
+            raise RPCError(
+                "INVALID_FREQUENCY",
+                f"frequency_hz must be a number, got {frequency_hz!r}",
+            )
         if not math.isfinite(value) or value < 0:
-            raise RPCError("INVALID_FREQUENCY", "frequency_hz must be a non-negative number")
+            raise RPCError(
+                "INVALID_FREQUENCY", "frequency_hz must be a non-negative number"
+            )
         value = self.config.clamp_frequency(value)
         # The drive rejects (Modbus exception) any setpoint above its own P-01.
         drive_max = self.params.max_frequency_hz
@@ -274,10 +290,14 @@ class TechtopMotorControllerApplication(Application):
         if direction is None:
             return None
         if direction not in DIRECTIONS:
-            raise RPCError("INVALID_DIRECTION", f"direction must be one of {DIRECTIONS}")
+            raise RPCError(
+                "INVALID_DIRECTION", f"direction must be one of {DIRECTIONS}"
+            )
         return direction == "reverse"
 
-    async def command_start(self, frequency_hz=None, direction=None, *, source: str = "ui"):
+    async def command_start(
+        self, frequency_hz=None, direction=None, *, source: str = "ui"
+    ):
         self._require_control()
         state = self.controller.state
         if state == TRIPPED:
@@ -309,14 +329,18 @@ class TechtopMotorControllerApplication(Application):
         await self.tags.last_command.set(f"stop {self.controller.stop_mode} ({source})")
         await self._tick()
 
-    async def command_set_frequency(self, frequency_hz, direction=None, *, source: str = "ui"):
+    async def command_set_frequency(
+        self, frequency_hz, direction=None, *, source: str = "ui"
+    ):
         self._require_control()
         value = self._validate_frequency(frequency_hz)
         reverse = self._validate_direction(direction)
         self.controller.setpoint_hz = value
         if reverse is not None:
             self.controller.reverse = reverse
-        await self.tags.last_command.set(f"setpoint {self.controller.signed_setpoint_hz():g} Hz ({source})")
+        await self.tags.last_command.set(
+            f"setpoint {self.controller.signed_setpoint_hz():g} Hz ({source})"
+        )
         if source != "ui":
             # Keep the operator's slider in step with what a peer app asked for.
             await self.ui.frequency_setpoint.set(value)
@@ -373,7 +397,9 @@ class TechtopMotorControllerApplication(Application):
     async def rpc_start(self, ctx, payload):
         payload = payload or {}
         await self.command_start(
-            payload.get("frequency_hz"), payload.get("direction"), source=self._rpc_source(ctx)
+            payload.get("frequency_hz"),
+            payload.get("direction"),
+            source=self._rpc_source(ctx),
         )
         return self.status_dict()
 
@@ -389,7 +415,9 @@ class TechtopMotorControllerApplication(Application):
         if "frequency_hz" not in payload:
             raise RPCError("INVALID_FREQUENCY", "frequency_hz is required")
         await self.command_set_frequency(
-            payload["frequency_hz"], payload.get("direction"), source=self._rpc_source(ctx)
+            payload["frequency_hz"],
+            payload.get("direction"),
+            source=self._rpc_source(ctx),
         )
         return self.status_dict()
 
@@ -446,7 +474,11 @@ class TechtopMotorControllerApplication(Application):
         if status.standby:
             return "Standby"
         if status.ready:
-            return "Ready" if self.params.modbus_control else f"Ready ({self.params.control_source or 'manual'})"
+            return (
+                "Ready"
+                if self.params.modbus_control
+                else f"Ready ({self.params.control_source or 'manual'})"
+            )
         if not status.enable_present:
             return "Not Enabled"
         if status.mains_loss:
@@ -472,12 +504,18 @@ class TechtopMotorControllerApplication(Application):
             await tags.ready.set(status.ready)
             await tags.tripped.set(status.tripped)
             await tags.trip_code.set(status.trip_code if status.tripped else None)
-            await tags.trip_description.set(status.trip_description if status.tripped else None)
+            await tags.trip_description.set(
+                status.trip_description if status.tripped else None
+            )
             await tags.enable_present.set(status.enable_present)
             await tags.at_speed.set(status.at_speed)
             await tags.mains_loss.set(status.mains_loss)
             await tags.overload.set(status.overload)
-            direction = "reverse" if (status.reverse if status.running else ctl.reverse) else "forward"
+            direction = (
+                "reverse"
+                if (status.reverse if status.running else ctl.reverse)
+                else "forward"
+            )
             await tags.direction.set(direction)
 
             await tags.frequency_setpoint_hz.set(status.frequency_setpoint_hz)
@@ -525,20 +563,34 @@ class TechtopMotorControllerApplication(Application):
             not (contactable and not status.tripped and not status.enable_present)
         )
         await tags.hide_not_modbus_warning.set(
-            not (contactable and self.control_enabled and known_source and not self.params.modbus_control)
+            not (
+                contactable
+                and self.control_enabled
+                and known_source
+                and not self.params.modbus_control
+            )
         )
         await tags.hide_control_disabled_warning.set(self.control_enabled)
 
-        await tags.hide_start_button.set(not (contactable and control_allowed and ctl.can_start))
-        await tags.hide_stop_button.set(not (contactable and control_allowed and ctl.can_stop))
-        await tags.hide_reset_button.set(not (contactable and control_allowed and ctl.can_reset))
+        await tags.hide_start_button.set(
+            not (contactable and control_allowed and ctl.can_start)
+        )
+        await tags.hide_stop_button.set(
+            not (contactable and control_allowed and ctl.can_stop)
+        )
+        await tags.hide_reset_button.set(
+            not (contactable and control_allowed and ctl.can_reset)
+        )
         await tags.hide_setpoint.set(not (contactable and control_allowed))
 
     async def _notify(self, message: str, severity: str = SEVERITY_WARN):
         try:
             await self.create_message(
                 "notifications",
-                {"message": f"{self.app_display_name}: {message}", "severity": severity},
+                {
+                    "message": f"{self.app_display_name}: {message}",
+                    "severity": severity,
+                },
             )
         except Exception as e:
             log.warning("Notification failed: %s", e)
@@ -558,14 +610,20 @@ class TechtopMotorControllerApplication(Application):
             self._comms_lost_notified = False
             log.info("Drive communications restored")
             if notif.on_comms_loss.value:
-                await self._notify("communications with the drive restored", SEVERITY_INFO)
+                await self._notify(
+                    "communications with the drive restored", SEVERITY_INFO
+                )
 
         # Trips: notify on the edge, and again if the code changes.
         trip = (status.tripped, status.trip_code if status.tripped else 0)
         if self._prev_trip is not None and trip != self._prev_trip and status.tripped:
-            log.error("Drive tripped: %s (code %s)", status.trip_description, status.trip_code)
+            log.error(
+                "Drive tripped: %s (code %s)", status.trip_description, status.trip_code
+            )
             if notif.on_trip.value:
-                await self._notify(f"drive tripped: {status.trip_description} (code {status.trip_code})")
+                await self._notify(
+                    f"drive tripped: {status.trip_description} (code {status.trip_code})"
+                )
         self._prev_trip = trip
 
         # Start / stop edges. The first poll only records state.
@@ -582,5 +640,8 @@ class TechtopMotorControllerApplication(Application):
 
         if self.controller.start_failed:
             self.controller.start_failed = False
-            log.error("Drive did not start within %.0fs of the run command", self.controller.start_timeout_s)
+            log.error(
+                "Drive did not start within %.0fs of the run command",
+                self.controller.start_timeout_s,
+            )
             await self._notify("drive did not start after a run command")

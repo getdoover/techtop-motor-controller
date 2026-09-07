@@ -15,3 +15,5 @@ services:
     environment:
       - APP_KEY=techtop_motor_controller_1
       - CONFIG_FP=/app/simulators/app_config.json
+      # A platform deployment injects this; the image's HEALTHCHECK curls it.
+      - HEALTHCHECK_PORT=49200

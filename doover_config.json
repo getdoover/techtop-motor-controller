@@ -1,5 +1,6 @@
 {
     "techtop_motor_controller": {
+        "icon_url": "https://cdn.jsdelivr.net/gh/getdoover/app-icons@f6ca20eca2c2d1e05184cb06bf6fee951bba40e7/icons/techtop.jpg",
         "name": "techtop_motor_controller",
         "display_name": "Techtop Motor Controller",
         "type": "DEV",

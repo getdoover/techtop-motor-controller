@@ -499,6 +499,23 @@ class TechtopDrive:
         result = await self._read(PARAM_REGISTER_BASE + number, 1)
         return None if result is None else result[0]
 
+    async def read_parameter_values(self, numbers) -> dict[int, int]:
+        """Raw values for the given parameter numbers, one read per contiguous
+        run. Parameters in a run that failed to read are left out."""
+        raw: dict[int, int] = {}
+        runs: list[list[int]] = []
+        for number in sorted(set(numbers)):
+            if runs and number == runs[-1][-1] + 1:
+                runs[-1].append(number)
+            else:
+                runs.append([number])
+        for run in runs:
+            values = await self._read(PARAM_REGISTER_BASE + run[0], len(run))
+            if values is None:
+                continue
+            raw.update(zip(run, values))
+        return raw
+
     async def read_parameters(self) -> DriveParameters:
         """Read P-01..P-12 and P-31 in two direct-register reads."""
         raw: dict[int, int] = {}

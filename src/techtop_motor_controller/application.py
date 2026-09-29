@@ -38,7 +38,6 @@ from .app_config import TechtopMotorControllerConfig
 from .app_state import (
     DISCONNECTED,
     NOT_READY,
-    STARTING,
     STOP_MODES,
     TRIPPED,
     MotorController,
@@ -48,6 +47,8 @@ from .app_ui import TechtopMotorControllerUI
 from .drive import DriveParameters, DriveStatus, TechtopDrive
 
 log = logging.getLogger(__name__)
+
+DEFAULT_DISPLAY_NAME = "Techtop Motor Controller"
 
 # The data plane deserialises severity by variant name.
 SEVERITY_INFO = "Info"
@@ -470,28 +471,11 @@ class TechtopMotorControllerApplication(Application):
     async def _on_controller_state_change(self, old: str, new: str):
         await self.tags.controller_state.set(new)
 
-    def _state_label(self, status: DriveStatus, state: str) -> str:
-        if state == DISCONNECTED or not status.contactable:
-            return "No Comms"
-        if status.tripped:
-            return f"Tripped ({status.trip_description})"
-        if status.running:
-            return f"Running {status.output_frequency_hz:g} Hz"
-        if state in (STARTING,):
-            return "Starting"
-        if status.standby:
-            return "Standby"
-        if status.ready:
-            return (
-                "Ready"
-                if self.params.modbus_control
-                else f"Ready ({self.params.control_source or 'manual'})"
-            )
-        if not status.enable_present:
-            return "Not Enabled"
-        if status.mains_loss:
-            return "Mains Loss"
-        return "Not Ready"
+    @property
+    def display_name(self) -> str:
+        # APP_DISPLAY_NAME only arrives with a platform deployment config; a
+        # hand-run (CONFIG_FP) leaves it blank.
+        return self.app_display_name or DEFAULT_DISPLAY_NAME
 
     async def _update_tags(self, status: DriveStatus, state: str):
         tags = self.tags
@@ -549,9 +533,8 @@ class TechtopMotorControllerApplication(Application):
             await tags.running.set(False)
             await tags.ready.set(False)
 
-        await tags.app_display_name.set(
-            f"{self.app_display_name}: {self._state_label(status, state)}"
-        )
+        # Keep the panel title fixed; the drive state has its own row.
+        await tags.app_display_name.set(self.display_name)
         await self._update_visibility(status, state)
 
     async def _update_visibility(self, status: DriveStatus, state: str):
@@ -596,7 +579,7 @@ class TechtopMotorControllerApplication(Application):
             await self.create_message(
                 "notifications",
                 {
-                    "message": f"{self.app_display_name}: {message}",
+                    "message": f"{self.display_name}: {message}",
                     "severity": severity,
                 },
             )

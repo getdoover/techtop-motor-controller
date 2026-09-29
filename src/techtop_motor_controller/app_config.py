@@ -74,6 +74,41 @@ class TechtopMotorControllerConfig(config.Schema):
         ),
     )
 
+    # --- Motor nameplate ----------------------------------------------------
+    # Written to the drive (FC06) whenever it reads back different and the
+    # motor is stopped. Blank = leave the drive's own value alone.
+    motor_rated_voltage_v = config.Number(
+        "Motor Rated Voltage (V)",
+        default=None,
+        minimum=0.0,
+        description="Motor nameplate voltage, drive parameter P-07. Blank keeps the drive's value.",
+    )
+    motor_rated_current_a = config.Number(
+        "Motor Rated Current (A)",
+        default=None,
+        minimum=0.0,
+        description=(
+            "Motor nameplate current, drive parameter P-08 (0.1 A resolution). The "
+            "drive refuses a value above its own rated current. Blank keeps the "
+            "drive's value."
+        ),
+    )
+    motor_rated_frequency_hz = config.Number(
+        "Motor Rated Frequency (Hz)",
+        default=None,
+        minimum=0.0,
+        description="Motor nameplate frequency, drive parameter P-09. Blank keeps the drive's value.",
+    )
+    motor_rated_speed_rpm = config.Integer(
+        "Motor Rated Speed (rpm)",
+        default=None,
+        minimum=0,
+        description=(
+            "Motor nameplate speed, drive parameter P-10. 0 makes the drive show "
+            "speed in Hz. Blank keeps the drive's value."
+        ),
+    )
+
     # --- Control -------------------------------------------------------------
     control_enabled = config.Boolean(
         "Control Enabled",
@@ -163,6 +198,17 @@ class TechtopMotorControllerConfig(config.Schema):
     def enable_pin(self) -> int | None:
         value = self.enable_output_pin.value
         return None if value is None else int(value)
+
+    @property
+    def nameplate(self) -> dict[str, float]:
+        """Configured nameplate values keyed by DriveParameters field name."""
+        values = {
+            "motor_rated_voltage_v": self.motor_rated_voltage_v.value,
+            "motor_rated_current_a": self.motor_rated_current_a.value,
+            "motor_rated_frequency_hz": self.motor_rated_frequency_hz.value,
+            "motor_rated_speed_rpm": self.motor_rated_speed_rpm.value,
+        }
+        return {k: float(v) for k, v in values.items() if v is not None}
 
     def clamp_frequency(self, frequency_hz: float) -> float:
         low = float(self.min_frequency_hz.value)

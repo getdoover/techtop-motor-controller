@@ -114,6 +114,7 @@ P04_DECEL_TIME = 4  # 0.01 s
 P07_MOTOR_VOLTAGE = 7  # V
 P08_MOTOR_CURRENT = 8  # 0.1 A
 P09_MOTOR_FREQUENCY = 9  # Hz
+P10_MOTOR_SPEED = 10  # rpm, 0 = speed shown in Hz
 P12_CONTROL_SOURCE = 12
 P31_KEYPAD_START_MODE = 31
 
@@ -298,6 +299,7 @@ class DriveParameters:
     decel_time_s: float | None = None
     motor_rated_voltage_v: float | None = None
     motor_rated_current_a: float | None = None
+    motor_rated_speed_rpm: float | None = None
     motor_rated_frequency_hz: float | None = None
     keypad_start_mode: int | None = None
 
@@ -390,9 +392,26 @@ def decode_parameters(raw: dict[int, int]) -> DriveParameters:
         params.motor_rated_current_a = raw[P08_MOTOR_CURRENT] / 10.0
     if P09_MOTOR_FREQUENCY in raw:
         params.motor_rated_frequency_hz = float(raw[P09_MOTOR_FREQUENCY])
+    if P10_MOTOR_SPEED in raw:
+        params.motor_rated_speed_rpm = float(raw[P10_MOTOR_SPEED])
     if P31_KEYPAD_START_MODE in raw:
         params.keypad_start_mode = raw[P31_KEYPAD_START_MODE]
     return params
+
+
+# Motor nameplate parameters: (parameter, DriveParameters field, raw units per
+# engineering unit). The drive caps each at its own rating and answers an out
+# of range value with IllegalValue (e.g. P-08 above the drive's rated current).
+NAMEPLATE_PARAMETERS = (
+    (P07_MOTOR_VOLTAGE, "motor_rated_voltage_v", 1),
+    (P08_MOTOR_CURRENT, "motor_rated_current_a", 10),
+    (P09_MOTOR_FREQUENCY, "motor_rated_frequency_hz", 1),
+    (P10_MOTOR_SPEED, "motor_rated_speed_rpm", 1),
+)
+
+
+def nameplate_raw(value: float, scale: int) -> int:
+    return round(float(value) * scale)
 
 
 class TechtopDrive:
@@ -436,11 +455,12 @@ class TechtopDrive:
         return list(result)
 
     async def _write_single(self, register: int, value: int) -> bool:
-        """Write one register (Modbus FC06).
+        """Write one control register through ``write_registers`` (FC16 with a
+        single value).
 
-        The E3 answers FC06 for every writable register it has, while a
-        multi-register FC16 to the control block is refused on the bench. So
-        every write here is a single-register write.
+        The E3 accepts a one-value FC16 on its control registers (control word,
+        setpoint) but refuses a multi-register FC16 to that block, so each is a
+        separate write. Parameters need FC06; see :meth:`_write_parameter_register`.
         """
         return bool(
             await self.modbus.write_registers(
@@ -510,8 +530,27 @@ class TechtopDrive:
         ok = await self.write_setpoint(frequency_hz)
         return await self.write_control_word(control_word) and ok
 
+    async def _write_parameter_register(self, register: int, value: int) -> bool:
+        """Write one parameter register with FC06 (Write Single Register).
+
+        The E3 refuses FC16 on its parameter registers (IllegalFunction) but
+        accepts FC06, verified on the bench. Needs a modbus interface that
+        implements ``writeSingleRegister``.
+        """
+        return bool(
+            await self.modbus.write_single_register(
+                modbus_id=self.unit_id,
+                address=register - 1,
+                value=to_unsigned16(value),
+                register_type=HOLDING_REGISTERS,
+                bus=self.bus,
+            )
+        )
+
     async def write_parameter(self, number: int, raw_value: int) -> bool:
-        return await self._write_single(PARAM_REGISTER_BASE + number, raw_value)
+        return await self._write_parameter_register(
+            PARAM_REGISTER_BASE + number, raw_value
+        )
 
     async def set_modbus_control(self) -> bool:
         """Put the drive into Modbus control mode (P-12 = 3)."""

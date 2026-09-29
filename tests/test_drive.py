@@ -168,7 +168,8 @@ class FakeModbus:
 
     def __init__(self, registers=None):
         self.registers = dict(registers or {})
-        self.writes = []
+        self.writes = []  # write_registers (FC16)
+        self.single_writes = []  # write_single_register (FC06)
         self.fail_writes = False
 
     async def read_registers(
@@ -191,6 +192,16 @@ class FakeModbus:
             return False
         self.registers[start_address] = values[0]
         self.writes.append((start_address, values[0]))
+        return True
+
+    async def write_single_register(
+        self, modbus_id, address, value, register_type, bus=None, **kw
+    ):
+        assert register_type == 4
+        if self.fail_writes:
+            return False
+        self.registers[address] = value
+        self.single_writes.append((address, value))
         return True
 
 
@@ -246,3 +257,30 @@ async def test_drive_status_not_contactable_when_read_fails():
     d = TechtopDrive(FakeModbus({}))
     s = await d.read_status()
     assert not s.contactable
+
+
+@pytest.mark.asyncio
+async def test_drive_parameter_writes_use_fc06_and_control_writes_do_not():
+    fake = _bench_modbus()
+    d = TechtopDrive(fake)
+    assert await d.write_parameter(drive.P08_MOTOR_CURRENT, 21)
+    # P-08 is register 136 -> wire address 135, written as FC06
+    assert fake.single_writes == [(135, 21)]
+    assert fake.writes == []
+    await d.write_command(CW_RUN, 30.0)
+    assert fake.writes == [(1, 300), (0, 1)]
+    assert fake.single_writes == [(135, 21)]
+
+
+@pytest.mark.asyncio
+async def test_drive_reads_motor_rated_speed():
+    p = await TechtopDrive(_bench_modbus()).read_parameters()
+    assert p.motor_rated_voltage_v == 400.0
+    assert p.motor_rated_current_a == 2.2
+    assert p.motor_rated_frequency_hz == 50.0
+    assert p.motor_rated_speed_rpm == 0.0
+
+
+def test_nameplate_raw_scaling():
+    assert drive.nameplate_raw(2.2, 10) == 22
+    assert drive.nameplate_raw(415, 1) == 415

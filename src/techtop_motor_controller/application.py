@@ -18,6 +18,8 @@ poll the app:
 
 Peer apps command this app over RPC (``start`` / ``stop`` / ``set_frequency`` /
 ``reset_fault`` / ``get_status``); the UI buttons go through the same code path.
+The commissioning panel uses ``get_diagnostics``, ``read_parameters`` and
+``write_parameter`` on the same channel.
 """
 
 from __future__ import annotations
@@ -46,10 +48,23 @@ from .app_tags import TechtopMotorControllerTags
 from .app_ui import TechtopMotorControllerUI
 from .drive import (
     NAMEPLATE_PARAMETERS,
+    P01_MAX_FREQUENCY,
+    P02_MIN_FREQUENCY,
     DriveParameters,
     DriveStatus,
     TechtopDrive,
     nameplate_raw,
+)
+from .parameters import (
+    FORBIDDEN_PARAMETERS,
+    P36_SERIAL_COMMS,
+    PARAMETERS,
+    PARAMETERS_BY_NUMBER,
+    ParameterSpec,
+    decode_p36,
+    decode_value,
+    is_step_multiple,
+    parse_parameter_id,
 )
 
 log = logging.getLogger(__name__)
@@ -63,6 +78,9 @@ SEVERITY_WARN = "Warn"
 METER_REFRESH_S = 30.0
 SUMMARY_LOG_INTERVAL_S = 60.0
 DIRECTIONS = ("forward", "reverse")
+
+CONFIG_MANAGED_DESCRIPTION = "Set in the app config (nameplate)"
+NAMEPLATE_FIELDS = {number: field for number, field, _ in NAMEPLATE_PARAMETERS}
 
 
 class TechtopMotorControllerApplication(Application):
@@ -488,6 +506,250 @@ class TechtopMotorControllerApplication(Application):
     @rpc_handler("get_status", channel=RPC_CHANNEL)
     async def rpc_get_status(self, ctx, payload):
         return self.status_dict()
+
+    # ------------------------------------------------------------------
+    # Commissioning RPCs (diagnostics and drive parameters)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _rpc_actor(ctx) -> str:
+        """Who issued an RPC, for the audit log."""
+        actor = getattr(ctx, "actor", None)
+        if isinstance(actor, dict):
+            for key in ("name", "email", "id"):
+                if actor.get(key):
+                    return str(actor[key])
+        return "unknown"
+
+    @rpc_handler("get_diagnostics", channel=RPC_CHANNEL)
+    async def rpc_get_diagnostics(self, ctx, payload):
+        return await self.diagnostics()
+
+    async def diagnostics(self) -> dict:
+        """One fresh read of the status block, setpoint and meters."""
+        async with self._tick_lock:
+            status = await self.drive.read_status(include_meters=True)
+        if not status.contactable:
+            return {
+                "output_hz": None,
+                "output_current_a": None,
+                "motor_rpm": None,
+                "dc_bus_v": None,
+                "heatsink_c": None,
+                "drive_state": status.state_name,
+                "trip_code": None,
+                "trip_description": None,
+                "run_hours": None,
+                "recent_trips": None,
+                "comms_ok": False,
+            }
+        return {
+            "output_hz": status.output_frequency_hz,
+            "output_current_a": status.motor_current_a,
+            "motor_rpm": self._estimated_rpm(status.output_frequency_hz),
+            "dc_bus_v": status.dc_bus_voltage_v,
+            "heatsink_c": status.heatsink_temp_c,
+            "drive_state": status.state_name,
+            "trip_code": status.trip_code if status.tripped else None,
+            "trip_description": status.trip_description if status.tripped else None,
+            "run_hours": None
+            if status.run_hours is None
+            else round(status.run_hours, 2),
+            # The E3 keeps its trip log (P00-13) on the keypad only; it is not
+            # in the Modbus register map.
+            "recent_trips": None,
+            "comms_ok": True,
+        }
+
+    def _estimated_rpm(self, output_hz: float) -> float | None:
+        """The drive does not report shaft speed over Modbus. With the nameplate
+        speed and frequency known (P-10 > 0), scale the output frequency by
+        them, as the drive's own display does; otherwise None."""
+        rated_rpm = self.params.motor_rated_speed_rpm
+        rated_hz = self.params.motor_rated_frequency_hz
+        if not rated_rpm or not rated_hz:
+            return None
+        return round(output_hz * rated_rpm / rated_hz)
+
+    def _config_managed(self, number: int) -> bool:
+        """A nameplate parameter the app config sets (and would rewrite)."""
+        field = NAMEPLATE_FIELDS.get(number)
+        return field is not None and field in self.config.nameplate
+
+    def _parameter_limits(
+        self, spec: ParameterSpec, raw: dict[int, int]
+    ) -> tuple[float | None, float | None]:
+        """Range for a parameter, resolving the P-01 / P-02 cross limits from
+        the drive's current values."""
+        minimum, maximum = spec.minimum, spec.maximum
+        if spec.number == P01_MAX_FREQUENCY and P02_MIN_FREQUENCY in raw:
+            minimum = PARAMETERS_BY_NUMBER[P02_MIN_FREQUENCY].from_raw(
+                raw[P02_MIN_FREQUENCY]
+            )
+        if spec.number == P02_MIN_FREQUENCY and P01_MAX_FREQUENCY in raw:
+            maximum = PARAMETERS_BY_NUMBER[P01_MAX_FREQUENCY].from_raw(
+                raw[P01_MAX_FREQUENCY]
+            )
+        return minimum, maximum
+
+    @rpc_handler("read_parameters", channel=RPC_CHANNEL)
+    async def rpc_read_parameters(self, ctx, payload):
+        return {"parameters": await self.read_parameter_list()}
+
+    async def read_parameter_list(self) -> list[dict]:
+        async with self._tick_lock:
+            raw = await self.drive.read_parameter_values(
+                spec.number for spec in PARAMETERS
+            )
+        entries = []
+        for spec in PARAMETERS:
+            minimum, maximum = self._parameter_limits(spec, raw)
+            writable = spec.writable and self.control_enabled
+            description = spec.description
+            if spec.number == P36_SERIAL_COMMS and spec.number in raw:
+                address, baud, trip = decode_p36(raw[spec.number])
+                description = (
+                    f"Drive Modbus address {address}, {baud:g} kbps, comms loss "
+                    f"{trip} (P-36). Set on the drive keypad only."
+                )
+            if spec.writable and self._config_managed(spec.number):
+                writable = False
+                description = CONFIG_MANAGED_DESCRIPTION
+            entries.append(
+                {
+                    "id": spec.id,
+                    "name": spec.name,
+                    "value": decode_value(spec, raw.get(spec.number)),
+                    "units": spec.units,
+                    "min": minimum,
+                    "max": maximum,
+                    "step": spec.step,
+                    "writable": writable,
+                    "stop_required": spec.stop_required,
+                    "description": description,
+                }
+            )
+        return entries
+
+    @rpc_handler("write_parameter", channel=RPC_CHANNEL)
+    async def rpc_write_parameter(self, ctx, payload):
+        payload = payload or {}
+        return await self.write_parameter(
+            payload.get("parameter"), payload.get("value"), actor=self._rpc_actor(ctx)
+        )
+
+    def _writable_spec(self, parameter) -> ParameterSpec:
+        number = parse_parameter_id(parameter)
+        if number in FORBIDDEN_PARAMETERS:
+            raise RPCError("NOT_ALLOWED", FORBIDDEN_PARAMETERS[number])
+        spec = PARAMETERS_BY_NUMBER.get(number)
+        if spec is None or not spec.writable:
+            raise RPCError(
+                "NOT_ALLOWED",
+                f"{parameter!r} is not a parameter this panel can change",
+            )
+        if not self.control_enabled:
+            raise RPCError(
+                "NOT_ALLOWED",
+                "Control is disabled in this app's configuration (monitor only)",
+            )
+        if self._config_managed(number):
+            raise RPCError(
+                "NOT_ALLOWED",
+                f"{spec.id}: {CONFIG_MANAGED_DESCRIPTION}. Change it there, or clear "
+                "it in the config to set it from the panel.",
+            )
+        return spec
+
+    @staticmethod
+    def _check_value(spec: ParameterSpec, value, minimum, maximum) -> float:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise RPCError("OUT_OF_RANGE", f"{spec.id} value must be a number")
+        value = float(value)
+        if not math.isfinite(value):
+            raise RPCError("OUT_OF_RANGE", f"{spec.id} value must be a finite number")
+        if (minimum is not None and value < minimum) or (
+            maximum is not None and value > maximum
+        ):
+            low = "-" if minimum is None else f"{minimum:g}"
+            high = "drive rating" if maximum is None else f"{maximum:g}"
+            raise RPCError(
+                "OUT_OF_RANGE",
+                f"{spec.id} must be between {low} and {high} {spec.units}".rstrip(),
+            )
+        if not is_step_multiple(value, spec.step):
+            raise RPCError(
+                "OUT_OF_RANGE", f"{spec.id} must be a multiple of {spec.step:g}"
+            )
+        return value
+
+    async def write_parameter(self, parameter, value, *, actor: str = "ui") -> dict:
+        """Range-check, scale, write (FC06), read back and compare one parameter.
+
+        Raises ``RPCError`` with DRIVE_RUNNING, OUT_OF_RANGE, NOT_ALLOWED,
+        READBACK_MISMATCH or COMMS_ERROR.
+        """
+        spec = self._writable_spec(parameter)
+        async with self._tick_lock:
+            status = await self.drive.read_status()
+            if not status.contactable:
+                raise RPCError("COMMS_ERROR", "No communications with the drive")
+            if spec.stop_required and status.running:
+                raise RPCError(
+                    "DRIVE_RUNNING", f"Stop the motor before changing {spec.id}"
+                )
+
+            limits_raw = await self.drive.read_parameter_values(
+                (P01_MAX_FREQUENCY, P02_MIN_FREQUENCY)
+            )
+            minimum, maximum = self._parameter_limits(spec, limits_raw)
+            number_value = self._check_value(spec, value, minimum, maximum)
+            target = spec.to_raw(number_value)
+            before = await self.drive.read_parameter(spec.number)
+
+            try:
+                ok = await self.drive.write_parameter(spec.number, target)
+            except Exception as e:
+                log.warning("Write of %s failed: %s", spec.id, e)
+                raise RPCError("COMMS_ERROR", f"Write of {spec.id} failed: {e}") from e
+            if not ok:
+                # A refused write and a lost reply look the same here; if the
+                # drive still answers, it refused the value.
+                if await self.drive.read_parameter(spec.number) is None:
+                    raise RPCError(
+                        "COMMS_ERROR", f"No reply from the drive writing {spec.id}"
+                    )
+                raise RPCError(
+                    "OUT_OF_RANGE",
+                    f"The drive refused {spec.id} = {number_value:g} {spec.units}".rstrip(),
+                )
+
+            readback = await self.drive.read_parameter(spec.number)
+            if readback is None:
+                raise RPCError(
+                    "COMMS_ERROR", f"No reply from the drive reading back {spec.id}"
+                )
+            if readback != target:
+                raise RPCError(
+                    "READBACK_MISMATCH",
+                    f"Wrote {spec.id} = {number_value:g} but the drive reads back "
+                    f"{spec.from_raw(readback):g}",
+                )
+
+        result = spec.from_raw(readback)
+        log.info(
+            "Parameter %s set to %s %s (raw %s, was %s) by %s",
+            spec.id,
+            result,
+            spec.units,
+            readback,
+            None if before is None else spec.from_raw(before),
+            actor,
+        )
+        await self.tags.last_command.set(f"{spec.id} = {result:g} ({actor})")
+        # Pick up new limits / nameplate on the next poll.
+        self._params_read_at = None
+        return {"parameter": spec.id, "value": result}
 
     # ------------------------------------------------------------------
     # UI handlers

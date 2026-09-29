@@ -212,6 +212,62 @@
                     "x-position": 2,
                     "minimum": 0
                 },
+                "motor_rated_voltage_v": {
+                    "title": "Motor Rated Voltage (V)",
+                    "x-name": "motor_rated_voltage_v",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Motor nameplate voltage, drive parameter P-07. Blank keeps the drive's value.",
+                    "default": null,
+                    "x-position": 3,
+                    "minimum": 0.0
+                },
+                "motor_rated_current_a": {
+                    "title": "Motor Rated Current (A)",
+                    "x-name": "motor_rated_current_a",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Motor nameplate current, drive parameter P-08 (0.1 A resolution). The drive refuses a value above its own rated current. Blank keeps the drive's value.",
+                    "default": null,
+                    "x-position": 4,
+                    "minimum": 0.0
+                },
+                "motor_rated_frequency_hz": {
+                    "title": "Motor Rated Frequency (Hz)",
+                    "x-name": "motor_rated_frequency_hz",
+                    "x-hidden": false,
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Motor nameplate frequency, drive parameter P-09. Blank keeps the drive's value.",
+                    "default": null,
+                    "x-position": 5,
+                    "minimum": 0.0
+                },
+                "motor_rated_speed_rpm": {
+                    "title": "Motor Rated Speed (rpm)",
+                    "x-name": "motor_rated_speed_rpm",
+                    "x-hidden": false,
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Motor nameplate speed, drive parameter P-10. 0 makes the drive show speed in Hz. Blank keeps the drive's value.",
+                    "default": null,
+                    "x-position": 6,
+                    "minimum": 0
+                },
                 "control_enabled": {
                     "title": "Control Enabled",
                     "x-name": "control_enabled",
@@ -223,7 +279,7 @@
                     "x-required": false,
                     "description": "Allow this app to start, stop and set the speed of the drive (from the UI and over RPC). Off = monitor only; nothing is ever written to the drive.",
                     "default": true,
-                    "x-position": 3
+                    "x-position": 7
                 },
                 "max_frequency_hz": {
                     "title": "Max Frequency (Hz)",
@@ -236,7 +292,7 @@
                     "x-required": false,
                     "description": "Highest setpoint this app will send. Also capped by the drive's own P-01; a setpoint above P-01 is rejected by the drive.",
                     "default": 50.0,
-                    "x-position": 4,
+                    "x-position": 8,
                     "minimum": 0.0
                 },
                 "min_frequency_hz": {
@@ -250,7 +306,7 @@
                     "x-required": false,
                     "description": "Lowest setpoint this app will send.",
                     "default": 0.0,
-                    "x-position": 5,
+                    "x-position": 9,
                     "minimum": 0.0
                 },
                 "default_frequency_hz": {
@@ -264,7 +320,7 @@
                     "x-required": false,
                     "description": "Setpoint used for a start command that does not name a frequency.",
                     "default": 50.0,
-                    "x-position": 6,
+                    "x-position": 10,
                     "minimum": 0.0
                 },
                 "stop_mode": {
@@ -283,7 +339,7 @@
                     "x-required": false,
                     "description": "How a stop is performed: ramp down on the P-04 deceleration ramp, fast stop on the P-24 ramp, or coast (output disabled immediately).",
                     "default": "ramp",
-                    "x-position": 7
+                    "x-position": 11
                 },
                 "start_timeout_s": {
                     "title": "Start Timeout (s)",
@@ -296,7 +352,7 @@
                     "x-required": false,
                     "description": "Seconds to wait for the drive to report Running after a start before giving up.",
                     "default": 10.0,
-                    "x-position": 8,
+                    "x-position": 12,
                     "minimum": 1.0
                 },
                 "stop_timeout_s": {
@@ -310,7 +366,7 @@
                     "x-required": false,
                     "description": "Seconds to wait for the drive to report stopped before warning.",
                     "default": 60.0,
-                    "x-position": 9,
+                    "x-position": 13,
                     "minimum": 1.0
                 },
                 "poll_interval_s": {
@@ -324,7 +380,7 @@
                     "x-required": false,
                     "description": "How often the drive is polled and, while under Modbus control, the control word is refreshed. Keep this well under the drive's Modbus watchdog (P-36 index 3) if that is enabled.",
                     "default": 1.0,
-                    "x-position": 10,
+                    "x-position": 14,
                     "minimum": 0.2
                 },
                 "parameter_refresh_s": {
@@ -338,7 +394,7 @@
                     "x-required": false,
                     "description": "How often the drive's parameters (control source, limits, motor rating) are re-read.",
                     "default": 60.0,
-                    "x-position": 11,
+                    "x-position": 15,
                     "minimum": 5.0
                 },
                 "comms_loss_timeout_s": {
@@ -352,7 +408,7 @@
                     "x-required": false,
                     "description": "Seconds without a Modbus reply before the drive is reported as disconnected.",
                     "default": 30.0,
-                    "x-position": 12,
+                    "x-position": 16,
                     "minimum": 1.0
                 },
                 "notifications": {
@@ -362,7 +418,7 @@
                     "type": "object",
                     "x-required": true,
                     "description": "Which drive events post to the notifications channel.",
-                    "x-position": 13,
+                    "x-position": 17,
                     "properties": {
                         "notify_on_trip": {
                             "title": "Notify on Trip",
@@ -433,7 +489,7 @@
                     "x-required": false,
                     "description": "Position of Application in UI Structure. Smaller numbers are closer to the top.",
                     "default": 100,
-                    "x-position": 14,
+                    "x-position": 18,
                     "minimum": 0
                 }
             },

@@ -44,7 +44,13 @@ from .app_state import (
 )
 from .app_tags import TechtopMotorControllerTags
 from .app_ui import TechtopMotorControllerUI
-from .drive import DriveParameters, DriveStatus, TechtopDrive
+from .drive import (
+    NAMEPLATE_PARAMETERS,
+    DriveParameters,
+    DriveStatus,
+    TechtopDrive,
+    nameplate_raw,
+)
 
 log = logging.getLogger(__name__)
 
@@ -103,6 +109,9 @@ class TechtopMotorControllerApplication(Application):
         self._prev_trip: tuple[bool, int] | None = None
         self._tick_lock = asyncio.Lock()
         self._last_summary_log: float = 0.0
+        # Nameplate values the drive refused, so a bad config value is reported
+        # once rather than rewritten every parameter refresh.
+        self._nameplate_refused: dict[int, int] = {}
 
         log.info(
             "Techtop motor controller ready: unit %s, control %s, enable pin %s",
@@ -243,6 +252,47 @@ class TechtopMotorControllerApplication(Application):
             log.info("Drive control source (P-12): %s", params.control_source)
         self.params = params
         self._params_read_at = now
+        if await self._apply_nameplate(params):
+            reread = await self.drive.read_parameters()
+            if reread.control_source_code is not None:
+                self.params = reread
+
+    async def _apply_nameplate(self, params: DriveParameters) -> bool:
+        """Write configured motor nameplate values (P-07..P-10) the drive does
+        not already hold. Only while control is enabled and the motor is
+        stopped. Returns True if anything was written."""
+        wanted = self.config.nameplate
+        if not wanted or not self.control_enabled:
+            return False
+        if self.drive.last_status.running:
+            return False
+        wrote = False
+        for number, field, scale in NAMEPLATE_PARAMETERS:
+            if field not in wanted:
+                continue
+            target = nameplate_raw(wanted[field], scale)
+            current = getattr(params, field)
+            if current is not None and nameplate_raw(current, scale) == target:
+                continue
+            if self._nameplate_refused.get(number) == target:
+                continue
+            try:
+                ok = await self.drive.write_parameter(number, target)
+            except Exception as e:  # noqa: BLE001 - e.g. a modbus interface without writeSingleRegister
+                log.warning("Could not write P-%02d: %s", number, e)
+                ok = False
+            if ok:
+                log.info("Set P-%02d to %s (was %s)", number, wanted[field], current)
+                self._nameplate_refused.pop(number, None)
+                wrote = True
+            else:
+                log.warning(
+                    "Drive refused P-%02d = %s (out of range for this drive?)",
+                    number,
+                    wanted[field],
+                )
+                self._nameplate_refused[number] = target
+        return wrote
 
     async def _assert_enable(self, high: bool):
         pin = self.config.enable_pin

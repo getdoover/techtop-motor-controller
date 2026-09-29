@@ -10,6 +10,8 @@ works on either badge.
 - Start / stop / speed setpoint / trip reset from the Doover UI
 - The same commands over **RPC**, so other Doover apps (a pump controller, a
   scheduler, an HMI) can drive the motor through this app
+- Commissioning RPCs: live diagnostics and reading / writing an allowlist of
+  drive parameters with range checks and read-back
 - A sequencing state machine layered over the drive's own Not Ready / Ready /
   Running / Tripped states, with timeouts and a trip that always clears the run
   request
@@ -175,6 +177,117 @@ Every method returns the status dict:
 Failures raise `RPCError` with one of: `CONTROL_DISABLED`, `NOT_CONNECTED`,
 `NOT_MODBUS_CONTROL`, `NOT_READY`, `TRIPPED`, `NOT_TRIPPED`,
 `INVALID_FREQUENCY`, `INVALID_DIRECTION`, `INVALID_STOP_MODE`.
+
+## Commissioning RPCs
+
+The commissioning panel calls three more methods on the same `dv-rpc`
+channel. They work in monitor-only mode too, except that writes are refused.
+
+### `get_diagnostics` `{}`
+
+One fresh read of the status block, setpoint and meters per call; nothing is
+polled in the background for it.
+
+```json
+{
+  "output_hz": 25.0, "output_current_a": 0.8, "motor_rpm": 695,
+  "dc_bus_v": 592.0, "heatsink_c": 30.0, "drive_state": "running",
+  "trip_code": null, "trip_description": null, "run_hours": 10.5,
+  "recent_trips": null, "comms_ok": true
+}
+```
+
+- `drive_state`: `disconnected`, `not_ready`, `ready`, `running`, `standby`
+  or `tripped`.
+- `trip_code` / `trip_description` are null unless the drive is tripped.
+- `motor_rpm` is an estimate (output Hz x P-10 / P-09), as the drive's display
+  shows it. It is null while P-10 is 0 or unknown: the E3 does not report shaft
+  speed over Modbus.
+- `recent_trips` is always null: the E3 keeps its trip log (P00-13) on the
+  keypad only; it is not in the Modbus register map.
+- Without comms, `comms_ok` is false, `drive_state` is `disconnected` and every
+  other value is null.
+
+### `read_parameters` `{}`
+
+```json
+{"parameters": [
+  {"id": "P-09", "name": "Motor rated frequency", "value": 50, "units": "Hz",
+   "min": 10, "max": 500, "step": 1, "writable": true, "stop_required": true,
+   "description": "Motor nameplate frequency. Changing it resets P-10 and the preset speeds on the drive."}
+]}
+```
+
+`value` is null if the drive did not answer. P-01's `min` is the drive's
+current P-02 and P-02's `max` is its current P-01. A null `max` means the
+drive's own rating (P-08).
+
+### `write_parameter` `{"parameter": "P-09", "value": 50}`
+
+Returns the read-back value, `{"parameter": "P-09", "value": 50}`, or an
+`RPCError`:
+
+| Code | When |
+|---|---|
+| `NOT_ALLOWED` | Not on the allowlist, never writable (P-12, P-14, P-36, P-37, P-38), set by the app config (see below), or control disabled |
+| `OUT_OF_RANGE` | Not a number, outside `min`..`max`, not a multiple of `step`, or refused by the drive (e.g. P-08 above the drive's rating) |
+| `DRIVE_RUNNING` | `stop_required` and the drive reports Running |
+| `READBACK_MISMATCH` | The drive accepted the write but reads back a different value |
+| `COMMS_ERROR` | No reply from the drive before, during or after the write |
+
+Every write reads the drive's state first, range-checks and scales the value,
+writes it with FC06, reads it back and compares the raw values. It is logged
+with the value, the previous value and the RPC actor, and recorded in
+`last_command`. Parameters are re-read on the next poll.
+
+### Parameters
+
+Ranges and units are from the E3 IP20 User Guide (V1.05, section 6.1).
+
+| Id | Name | Units | Range | Step | Writable | Stop required |
+|---|---|---|---|---|---|---|
+| P-01 | Maximum frequency | Hz | P-02 .. 500 | 0.1 | yes | no |
+| P-02 | Minimum frequency | Hz | 0 .. P-01 | 0.1 | yes | no |
+| P-03 | Acceleration time | s | 0 .. 600 | 0.01 | yes | no |
+| P-04 | Deceleration time | s | 0 .. 600 | 0.01 | yes | no |
+| P-05 | Stopping mode | – | 0 .. 4 | 1 | yes | yes |
+| P-07 | Motor rated voltage | V | 0 .. 500 | 1 | yes, unless set in config | yes |
+| P-08 | Motor rated current | A | 0 .. drive rating | 0.1 | yes, unless set in config | yes |
+| P-09 | Motor rated frequency | Hz | 10 .. 500 | 1 | yes, unless set in config | yes |
+| P-10 | Motor rated speed | rpm | 0 .. 30000 | 1 | yes, unless set in config | yes |
+| P-12 | Control source | – | 0 .. 9 | 1 | never | – |
+| P-24 | Fast stop ramp time | s | 0 .. 600 | 0.01 | yes | no |
+| P-36 | Modbus address | – | 0 .. 63 | 1 | never (keypad only) | – |
+
+- The user guide gives no per-parameter stop-only rules. The app requires the
+  motor stopped for the motor data (P-07..P-10) and the stopping mode (P-05),
+  and allows ramps, limits and P-24 while running.
+- P-24 is taken to use the same 0.01 s internal format as P-03 / P-04; the
+  other scalings are bench-verified.
+- P-12, the P-36 comms settings (address, baud, watchdog) and the keypad access
+  parameters (P-14, P-37, P-38) are never written: a wrong value there cuts the
+  app off from the drive or takes it out of Modbus control. The E3 has no
+  factory-reset parameter (it is a keypad key combination).
+- P-36 is reported as the drive address, with the baud rate and comms-loss
+  setting in its description.
+
+### Nameplate config and the panel
+
+The motor nameplate fields in the app config (`motor_rated_*`) are written to
+P-07..P-10 at startup and on every parameter refresh whenever the drive reads
+back different. A panel write to one of those parameters would be overwritten
+within a minute, so the app treats the config as the owner:
+
+- A nameplate parameter whose config field is **set** is reported with
+  `writable: false` and the description `Set in the app config (nameplate)`,
+  and `write_parameter` refuses it with `NOT_ALLOWED` and that reason. Change
+  it in the app config instead.
+- A nameplate parameter whose config field is **blank** is not managed by the
+  app and is writable from the panel like any other.
+
+This is per field: setting only *Motor Rated Current* locks P-08 and leaves
+P-07, P-09 and P-10 writable. To commission the nameplate from the panel,
+leave the four `motor_rated_*` fields blank.
 
 ## Modbus notes
 

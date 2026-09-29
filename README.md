@@ -50,9 +50,11 @@ Enabled* off and redeploy, or stop the app's container.
 
 ## Drive setup (keypad, one-off)
 
-The drive rejects control-word writes unless it is in Modbus control mode, and
-parameter writes over Modbus are refused on the TTA-3 firmware, so this has to
-be done on the keypad:
+The drive rejects control-word writes unless it is in Modbus control mode, so
+P-12 has to be set on the keypad first. The motor nameplate (P-07 .. P-10) can
+be set on the keypad too, or left to the app's *Motor Rated* config fields
+(see Configuration). P-36 can only be set on the keypad: the drive excludes all
+three of its indices from Modbus access.
 
 | Parameter | Value | Why |
 |---|---|---|
@@ -60,9 +62,9 @@ be done on the keypad:
 | P-12 | 3 | Modbus control, drive's own ramps |
 | P-36 idx 1 | 1 | Modbus address (match *Modbus Unit ID*) |
 | P-36 idx 2 | 115.2 | Baud rate (match *Serial Baud*); 8 data bits, no parity, 1 stop bit are fixed |
-| P-36 idx 3 | r 3000 recommended | Ramp-stop if no Modbus telegram for 3 s. Only meaningful with *Poll Interval* well under it. |
+| P-36 idx 3 | t 3000 (factory default, kept) | Comms-loss watchdog: trip if no control-word write for 3 s while enabled. `r 3000` ramps to a stop instead of tripping. Keep *Poll Interval* well under it. |
 | P-01 .. P-04 | as required | Max/min frequency, accel, decel |
-| P-07 .. P-10 | motor nameplate | Volts, amps, Hz, rpm |
+| P-07 .. P-10 | motor nameplate | Volts, amps, Hz, rpm. Optional here if set in the app config |
 
 Leave P-31 at its default (1). With P-12 = 3 the keypad's own Start/Stop keys
 are ignored and the terminals only supply the enable.
@@ -90,6 +92,7 @@ invert A/B). The inversion flag has no effect; swap the wires instead.
 | `modbus_config` | serial, `/dev/ttyAMA0`, 115200 8N1 | pydoover Modbus bus. Use `tcp` for a serial-to-Ethernet gateway. |
 | `modbus_unit_id` | 1 | Drive address, P-36 index 1 |
 | `enable_output_pin` | none | Doovit DO wired to drive terminal 2 |
+| `motor_rated_voltage_v` / `motor_rated_current_a` / `motor_rated_frequency_hz` / `motor_rated_speed_rpm` | blank | Motor nameplate, written to P-07 .. P-10. Blank = keep the drive's value |
 | `control_enabled` | true | false = monitor only, nothing is written to the drive |
 | `max_frequency_hz` / `min_frequency_hz` | 50 / 0 | Setpoint limits (also capped by the drive's P-01) |
 | `default_frequency_hz` | 50 | Setpoint for a start that names no frequency |
@@ -177,12 +180,31 @@ Failures raise `RPCError` with one of: `CONTROL_DISABLED`, `NOT_CONNECTED`,
 
 - The drive only has holding registers; documented register *N* is address
   *N-1* on the wire (pydoover `register_type=4`).
-- The drive answers single-register writes (FC06). Multi-register writes to
-  the control block were refused on the bench, so the app writes the setpoint
-  and control word as two single writes, setpoint first.
+- Invertek documents only two function codes for the E3: FC03 (Read Holding
+  Registers) and FC06 (Write Single Holding Register). See
+  [docs/optidrive-e3-reference.md](docs/optidrive-e3-reference.md).
+- The control word and setpoint are written as two one-value writes through
+  pydoover's `write_registers` (FC16), setpoint first. This firmware accepts a
+  one-value FC16 there (undocumented), but refuses a multi-register FC16 to
+  that block.
 - Parameters read back at register 128 + P-xx in the drive's internal formats
-  (P-01 reads 3000 for 50.0 Hz). Writes to them are refused, hence the keypad
-  setup above.
+  (P-01 reads 3000 for 50.0 Hz). The drive refuses FC16 on these registers
+  (IllegalFunction) but accepts FC06, so parameter writes use pydoover's
+  `write_single_register`. That needs a modbus interface that implements the
+  `writeSingleRegister` RPC.
+- The drive caps each parameter at its own limits and answers an out of range
+  value with IllegalValue. P-08 cannot exceed the drive's rated current (2.2 A
+  on the 0.37 kW, 400 V frame).
+- Nameplate values are written only while control is enabled and the motor is
+  stopped, at startup and on each parameter refresh, and only when the drive
+  reads back a different value. A value the drive refuses is logged and not
+  retried until the app restarts.
+- P-36 (register 164) reads back as one packed word: bits 0-7 address,
+  bits 8-11 baud rate, bits 12-15 comms-loss setting. It is read-only over
+  Modbus. The bench drive reads `0x4601`: address 1, 115.2 kbps, `t 3000`.
+- With `t 3000`, restarting the app or the modbus interface while the drive is
+  enabled can let the watchdog expire, which trips the drive. Clear it with
+  *Reset Trip*; it does not restart the motor.
 - Bit 15 of status word 2 toggles every second on this firmware; it is ignored.
 
 ## Testing without a motor

@@ -74,6 +74,36 @@ are ignored and the terminals only supply the enable.
 Until P-12 = 3 the app still monitors the drive and shows a *Drive not in
 Modbus control* warning; the control buttons stay hidden.
 
+### Changing a parameter on the keypad
+
+The app cannot change P-12 (or P-14, P-36, P-37, P-38): `write_parameter`
+refuses them on purpose, so nobody can move a drive between terminal and Modbus
+control remotely. They are set on the drive:
+
+1. Make sure the drive is **not enabled**: terminal 2 (DI1) off. If the app
+   holds the enable output high, set *Control Enabled* off and redeploy, or
+   stop the app's container. An enabled drive refuses the edit and the display
+   flashes `L`.
+2. Hold **Navigate** (the middle key) for about 2 s until a parameter number
+   (`P-01` ...) shows.
+3. Use **Up** / **Down** to reach the parameter, then press **Navigate** to
+   show its value.
+4. Use **Up** / **Down** to set the value, then press **Navigate** to store it.
+5. Hold **Navigate** for about 2 s to return to the normal display.
+
+P-01 .. P-14 are always visible; for P-15 and above, set P-14 = 101 first (see
+the table above and `docs/optidrive-e3-reference.md`).
+
+Within one *Parameter Refresh* (60 s by default) the app logs
+`Drive control source (P-12): modbus` and the warning clears. Its once-a-minute
+status line also shows the mode, e.g. `Drive running (controller running,
+P-12 modbus): out 50.0 Hz, ...`.
+
+When the keypad display shows a number that is not the frequency, it may be on
+another readout: **Navigate** (a short press) steps through output frequency,
+motor current (A), power (kW) and speed. A drive at 50 Hz under light load can
+show `0.3` because it is on the kW readout.
+
 ## Doovit RS-485 port
 
 The Doovit's RS-485 transceiver sits behind its IO microcontroller, which has
